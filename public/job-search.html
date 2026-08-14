@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Job Search · Resume Copilot</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="topnav"></div>
+  <main>
+    <h1>Find high-income jobs</h1>
+    <p class="subtitle">Live web search, matched against your resume and ranked by fit + estimated compensation.</p>
+
+    <div class="card">
+      <label>CV to match against</label>
+      <select id="cvSelect"></select>
+
+      <div class="grid cols-3">
+        <div><label>City</label><input type="text" id="city" /></div>
+        <div><label>Region/State</label><input type="text" id="region" /></div>
+        <div><label>Country</label><input type="text" id="country" /></div>
+      </div>
+
+      <label><input type="checkbox" id="remote" style="width:auto; display:inline-block;" /> Include / prefer fully remote roles</label>
+
+      <label>Minimum target compensation (optional)</label>
+      <input type="text" id="minComp" placeholder="e.g. €80,000" />
+
+      <label>Other preferences (optional)</label>
+      <input type="text" id="notes" placeholder="e.g. prefer ML/data roles, avoid agencies" />
+
+      <div class="row" style="margin-top:12px;">
+        <button class="btn" id="searchBtn">Search</button>
+        <span id="status" class="muted"></span>
+      </div>
+    </div>
+
+    <div id="result"></div>
+  </main>
+
+  <script type="module" src="js/job-search.js"></script>
+</body>
+</html>

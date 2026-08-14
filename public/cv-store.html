@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CV Store · Resume Copilot</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="topnav"></div>
+  <main>
+    <h1>CV Store</h1>
+    <p class="subtitle">Upload a CV, mark a master, and improve it interactively — no job post needed.</p>
+
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>Upload a CV</h2>
+        <label>File (.docx, .txt, .md)</label>
+        <input type="file" id="cvFile" accept=".docx,.txt,.md" />
+        <label>Label</label>
+        <input type="text" id="uploadLabel" placeholder="e.g. Master CV, or 'CV - 2024 backup'" />
+        <div class="row" style="margin-top:12px;">
+          <button class="btn" id="uploadBtn">Upload</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Or paste CV text</h2>
+        <label>Label</label>
+        <input type="text" id="pasteLabel" />
+        <label>CV content</label>
+        <textarea id="pasteContent" rows="5"></textarea>
+        <div class="row" style="margin-top:12px;">
+          <button class="btn" id="pasteBtn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Your CVs</h2>
+      <div id="cvList"></div>
+    </div>
+
+    <div class="card" id="chatCard" style="display:none;">
+      <div class="row between">
+        <h2 id="chatTitle">Improve CV</h2>
+        <button class="btn secondary small" id="closeChatBtn">Close</button>
+      </div>
+      <p class="muted">Interactive optimization — ask for anything, or say "just improve it" and I'll do my best. When I propose a full rewrite, you'll get an Accept button to save it as a new version.</p>
+      <div class="chat-log" id="chatLog"></div>
+      <div id="proposedWrap"></div>
+      <div class="row">
+        <input type="text" id="chatInput" placeholder="e.g. Make my bullets more quantified, or: just tighten the summary" />
+        <button class="btn" id="chatSend">Send</button>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="js/cv-store.js"></script>
+</body>
+</html>

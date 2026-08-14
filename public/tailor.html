@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tailor CV · Resume Copilot</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="topnav"></div>
+  <main>
+    <h1>Tailor CV to a job posting</h1>
+    <p class="subtitle">Quick check: paste a posting, see your match, and get a tailored CV — with or without creating a tracked application.</p>
+
+    <div class="card">
+      <label>Base CV</label>
+      <select id="cvSelect"></select>
+
+      <label>Role flavor (optional — adds a specialized skill on top of the general tailoring skills)</label>
+      <select id="flavor">
+        <option value="">General</option>
+        <option value="tech">Tech / Engineering / PM</option>
+        <option value="executive">Executive / C-suite</option>
+        <option value="academic">Academic</option>
+        <option value="creative">Creative / Design</option>
+        <option value="careerChange">Career change</option>
+      </select>
+
+      <label>Job posting text</label>
+      <textarea id="jobPost" rows="8" placeholder="Paste the full job description here"></textarea>
+
+      <div class="row" style="margin-top:12px;">
+        <button class="btn" id="runBtn">Analyze &amp; Tailor</button>
+        <span id="status" class="muted"></span>
+      </div>
+    </div>
+
+    <div id="result"></div>
+  </main>
+
+  <script type="module" src="js/tailor.js"></script>
+</body>
+</html>

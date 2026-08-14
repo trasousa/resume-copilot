@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Application Tracker · Resume Copilot</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="topnav"></div>
+  <main>
+    <div class="row between">
+      <div>
+        <h1>Application Tracker</h1>
+        <p class="subtitle">Every application, its stage, and what's next.</p>
+      </div>
+      <button class="btn" id="newAppBtn">+ New application</button>
+    </div>
+
+    <div id="staleNotice"></div>
+
+    <div id="board" class="board"></div>
+  </main>
+
+  <dialog id="newAppDialog">
+    <div class="card">
+      <h2>New application</h2>
+      <label>Company</label>
+      <input type="text" id="f-company" />
+      <label>Role</label>
+      <input type="text" id="f-role" />
+      <label>Location</label>
+      <input type="text" id="f-location" placeholder="Berlin, Remote, ..." />
+      <label>Posting link (optional)</label>
+      <input type="text" id="f-link" />
+      <label>Job post text (paste it here so the right skills can tailor your CV, cover letter, etc. to it)</label>
+      <textarea id="f-jobpost" rows="6"></textarea>
+      <label>Starting stage</label>
+      <select id="f-stage">
+        <option value="saved">Saved</option>
+        <option value="applied">Applied</option>
+      </select>
+      <div class="row" style="margin-top:16px; justify-content:flex-end;">
+        <button class="btn secondary" id="cancelNewApp">Cancel</button>
+        <button class="btn" id="saveNewApp">Create</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="js/index.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "name": "resume-copilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Interactive resume tailoring, job search, and application tracker powered by Claude + the ResumeSkills skill set.",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "cors": "^2.8.5",
+    "docx": "^9.1.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "lowdb": "^7.0.1",
+    "mammoth": "^1.8.0",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^9.0.1"
+  }
+}

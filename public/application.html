@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Application · Resume Copilot</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="topnav"></div>
+  <main>
+    <a href="index.html" class="muted">&larr; Back to tracker</a>
+    <div id="header" style="margin-top:10px;"></div>
+
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>Details</h2>
+        <label>Stage</label>
+        <select id="stageSelect"></select>
+        <label>Location</label>
+        <input type="text" id="location" />
+        <label>Posting link</label>
+        <input type="text" id="link" />
+        <label>Job post text</label>
+        <textarea id="jobPost" rows="8"></textarea>
+        <label>Notes</label>
+        <textarea id="notes" rows="4" placeholder="Interviewer names, impressions, follow-ups..."></textarea>
+        <div class="row" style="margin-top:12px;">
+          <button class="btn" id="saveDetails">Save</button>
+          <span id="saveStatus" class="muted"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Tailored CV</h2>
+        <div id="cvStatus" class="muted">No tailored CV yet.</div>
+        <label>Role flavor</label>
+        <select id="flavor">
+          <option value="">General</option>
+          <option value="tech">Tech / Engineering / PM</option>
+          <option value="executive">Executive / C-suite</option>
+          <option value="academic">Academic</option>
+          <option value="creative">Creative / Design</option>
+          <option value="careerChange">Career change</option>
+        </select>
+        <div class="row" style="margin-top:12px;">
+          <button class="btn" id="tailorBtn">Tailor CV to this posting</button>
+        </div>
+        <div id="tailorResult"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Application documents</h2>
+      <p class="muted">Generate everything for this application using the right skill for each piece.</p>
+      <div class="row" id="docButtons"></div>
+      <div id="docsList" style="margin-top:16px;"></div>
+    </div>
+  </main>
+
+  <script type="module" src="js/application.js"></script>
+</body>
+</html>
