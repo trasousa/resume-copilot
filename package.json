@@ -16,6 +16,7 @@
     "db:create": "wrangler d1 create resume-copilot",
     "db:init": "wrangler d1 execute resume-copilot --remote --file=./schema.sql",
     "db:init:local": "wrangler d1 execute resume-copilot --local --file=./schema.sql",
+    "r2:create": "wrangler r2 bucket create resume-copilot-originals",
     "prebuild": "npm run build:skills",
     "build": "wrangler deploy --dry-run --outdir dist"
   },

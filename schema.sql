@@ -7,13 +7,19 @@
 -- a stage change saved from another tab.
 
 CREATE TABLE IF NOT EXISTS cvs (
-  id          TEXT PRIMARY KEY,
-  label       TEXT NOT NULL,
-  content     TEXT NOT NULL,
-  is_master   INTEGER NOT NULL DEFAULT 0,
-  parent_id   TEXT REFERENCES cvs(id) ON DELETE SET NULL,
-  source_file TEXT,
-  created_at  TEXT NOT NULL
+  id                TEXT PRIMARY KEY,
+  label             TEXT NOT NULL,
+  content           TEXT NOT NULL,
+  is_master         INTEGER NOT NULL DEFAULT 0,
+  parent_id         TEXT REFERENCES cvs(id) ON DELETE SET NULL,
+  source_file       TEXT,
+  -- R2 object key + original filename for the as-uploaded file, when one was
+  -- uploaded (pasted CVs and generated ones have neither). extractText()
+  -- keeps only the plain text, so without this the original layout/tables/
+  -- fonts are gone for good the moment a file is uploaded.
+  original_key      TEXT,
+  original_filename TEXT,
+  created_at        TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS applications (

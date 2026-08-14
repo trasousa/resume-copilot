@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import * as db from "../lib/db.js";
 import { extractText } from "../lib/parse.js";
+import { putOriginal, deleteOriginal } from "../lib/r2.js";
 import { cvTextToDocxBuffer, docxFilename } from "../lib/docxOut.js";
 import { buildSkillPrompt, SKILL_ROUTES } from "../lib/skills.js";
 import { runChatStream } from "../lib/anthropic.js";
@@ -14,6 +15,7 @@ const summarize = (cv) => ({
   parentId: cv.parentId || null,
   createdAt: cv.createdAt,
   snippet: cv.content.slice(0, 160).replace(/\s+/g, " "),
+  hasOriginal: !!cv.originalKey,
 });
 
 router.get("/", async (c) =>
@@ -46,12 +48,27 @@ router.post("/upload", async (c) => {
   if (!file || typeof file === "string")
     return c.json({ error: "file is required" }, 400);
 
+  // File.arrayBuffer() reads the blob's underlying data fresh each call (it's
+  // not a single-use stream), so the same buffer can go to both extraction
+  // and R2 without re-reading the multipart body.
+  const buffer = await file.arrayBuffer();
+
   // Throws on unsupported type or oversize; nothing is written anywhere first,
   // so there's no temp file to leak on the failure path.
-  const content = await extractText(await file.arrayBuffer(), file.name);
+  const content = await extractText(buffer, file.name);
+
+  const id = crypto.randomUUID();
+
+  // Keep the original bytes if R2 is configured -- extractText() only keeps
+  // plain text, so without this the original formatting is gone for good the
+  // moment the upload completes. Optional: the app still works without it.
+  let originalKey = null;
+  if (c.env.ORIGINALS) {
+    originalKey = await putOriginal(c.env.ORIGINALS, id, file.name, file.type, buffer);
+  }
 
   const cv = await db.createCv(c.env.DB, {
-    id: crypto.randomUUID(),
+    id,
     label: form.get("label") || file.name.replace(/\.[^.]+$/, ""),
     content,
     // Honour the flag the client actually sends, instead of silently ignoring
@@ -59,6 +76,8 @@ router.post("/upload", async (c) => {
     isMaster: form.get("isMaster") === "true",
     parentId: null,
     sourceFile: file.name,
+    originalKey,
+    originalFilename: originalKey ? file.name : null,
     createdAt: new Date().toISOString(),
   });
   return c.json(cv, 201);
@@ -72,7 +91,12 @@ router.patch("/:id/master", async (c) => {
 });
 
 router.delete("/:id", async (c) => {
-  await db.deleteCv(c.env.DB, c.req.param("id"));
+  const id = c.req.param("id");
+  const cv = await db.getCv(c.env.DB, id);
+  if (cv?.originalKey && c.env.ORIGINALS) {
+    await deleteOriginal(c.env.ORIGINALS, cv.originalKey).catch(() => {});
+  }
+  await db.deleteCv(c.env.DB, id);
   return c.body(null, 204);
 });
 
@@ -85,6 +109,22 @@ router.get("/:id/download", async (c) => {
     "Content-Type":
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "Content-Disposition": `attachment; filename="${docxFilename(cv.label, cv.id)}"`,
+  });
+});
+
+router.get("/:id/original", async (c) => {
+  const cv = await db.getCv(c.env.DB, c.req.param("id"));
+  if (!cv?.originalKey)
+    return c.json({ error: "No original file stored for this CV." }, 404);
+  if (!c.env.ORIGINALS)
+    return c.json({ error: "Original file storage is not configured." }, 500);
+
+  const obj = await c.env.ORIGINALS.get(cv.originalKey);
+  if (!obj) return c.json({ error: "Original file is missing from storage." }, 404);
+
+  return c.body(obj.body, 200, {
+    "Content-Type": obj.httpMetadata?.contentType || "application/octet-stream",
+    "Content-Disposition": `attachment; filename="${cv.originalFilename || "original"}"`,
   });
 });
 

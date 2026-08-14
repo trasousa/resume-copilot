@@ -59,6 +59,7 @@ export function renderNav(active) {
       <nav class="tabs">
         ${links.map(([href, label]) => `<a href="${href}" class="${active === href ? "active" : ""}">${label}</a>`).join("")}
       </nav>
+      <span class="muted" id="whoami" style="font-size: 0.85em; margin: 0 10px;"></span>
       <button class="btn secondary small" id="logoutBtn">Log out</button>
     </header>`;
 
@@ -66,6 +67,13 @@ export function renderNav(active) {
     await fetch("/api/auth/logout", { method: "POST" });
     location.href = "login.html";
   };
+
+  fetch("/api/auth/me")
+    .then((r) => r.json())
+    .then(({ email }) => {
+      if (email) document.getElementById("whoami").textContent = email;
+    })
+    .catch(() => {});
 }
 
 export function showError(container, err) {

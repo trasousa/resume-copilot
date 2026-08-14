@@ -23,6 +23,8 @@ const cvFromRow = (r) =>
     isMaster: !!r.is_master,
     parentId: r.parent_id,
     sourceFile: r.source_file ?? undefined,
+    originalKey: r.original_key ?? null,
+    originalFilename: r.original_filename ?? null,
     createdAt: r.created_at,
   };
 
@@ -87,8 +89,10 @@ export async function createCv(db, cv) {
   stmts.push(
     db
       .prepare(
-        `INSERT INTO cvs (id, label, content, is_master, parent_id, source_file, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO cvs
+           (id, label, content, is_master, parent_id, source_file,
+            original_key, original_filename, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         cv.id,
@@ -97,6 +101,8 @@ export async function createCv(db, cv) {
         cv.isMaster ? 1 : 0,
         cv.parentId ?? null,
         cv.sourceFile ?? null,
+        cv.originalKey ?? null,
+        cv.originalFilename ?? null,
         cv.createdAt
       )
   );

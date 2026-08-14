@@ -34,13 +34,29 @@
     }
   ],
 
+  // Original uploaded CV files (mammoth only keeps the extracted text).
+  // Optional -- routes check for this binding and degrade gracefully if it's
+  // absent. Create with: npx wrangler r2 bucket create resume-copilot-originals
+  "r2_buckets": [
+    {
+      "binding": "ORIGINALS",
+      "bucket_name": "resume-copilot-originals"
+    }
+  ],
+
   "vars": {
     "ANTHROPIC_MODEL": "claude-opus-5"
   }
 
   // Secrets are NOT set here -- they go in the encrypted store:
   //   npx wrangler secret put ANTHROPIC_API_KEY
-  //   npx wrangler secret put APP_PASSWORD
-  //   npx wrangler secret put SESSION_SECRET
+  //   npx wrangler secret put GOOGLE_CLIENT_ID
+  //   npx wrangler secret put GOOGLE_CLIENT_SECRET
+  //   npx wrangler secret put ALLOWED_EMAILS      # comma-separated
+  //   npx wrangler secret put SESSION_SECRET      # any long random string
   // For local dev, put the same keys in .dev.vars (gitignored).
+  //
+  // To serve this on your own domain instead of *.workers.dev, add a routes
+  // entry once the domain is on Cloudflare -- see README.md "Custom domain".
+  //   "routes": [{ "pattern": "resume.yourdomain.com", "custom_domain": true }]
 }

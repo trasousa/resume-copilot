@@ -31,6 +31,7 @@ async function loadCvs() {
         ${!cv.isMaster ? `<button class="btn secondary small" data-master="${cv.id}">Set as master</button>` : ""}
         <button class="btn secondary small" data-improve="${cv.id}" data-label="${escapeHtml(cv.label)}">Improve</button>
         <a class="btn secondary small" href="/api/cvs/${cv.id}/download">Download .docx</a>
+        ${cv.hasOriginal ? `<a class="btn secondary small" href="/api/cvs/${cv.id}/original">Download original</a>` : ""}
         <button class="btn danger small" data-delete="${cv.id}">Delete</button>
       </div>
     </div>`
