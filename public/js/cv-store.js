@@ -121,11 +121,24 @@ function stripCvBlock(text) {
   return text.replace(/```CV\n[\s\S]*?\n```/, "[proposed CV shown below]").trim();
 }
 
+// Requires the closing fence, so a still-streaming (or truncated) reply
+// correctly yields nothing rather than half a CV.
+function extractCvBlock(text) {
+  return text.match(/```CV\n([\s\S]*?)\n```/)?.[1].trim() || null;
+}
+
 document.getElementById("chatSend").onclick = sendChat;
 document.getElementById("chatInput").addEventListener("keydown", (e) => {
   if (e.key === "Enter") sendChat();
 });
 
+/**
+ * Consume the SSE stream from POST /cvs/:id/chat.
+ *
+ * The reply now renders token by token instead of appearing all at once after
+ * a long spinner. `done` carries the full text, which is what the CV-block
+ * extraction runs against.
+ */
 async function sendChat() {
   const input = document.getElementById("chatInput");
   const message = input.value.trim();
@@ -137,11 +150,64 @@ async function sendChat() {
   chatLog.scrollTop = chatLog.scrollHeight;
 
   try {
-    const { reply, proposedCv } = await api(`/cvs/${activeCvId}/chat`, { method: "POST", body: { message } });
-    document.getElementById("pending")?.remove();
-    chatLog.insertAdjacentHTML("beforeend", `<div class="msg assistant">${escapeHtml(stripCvBlock(reply))}</div>`);
+    const res = await fetch(`/api/cvs/${activeCvId}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+
+    if (res.status === 401) {
+      location.href = `login.html?next=${encodeURIComponent(location.pathname)}`;
+      return;
+    }
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({}));
+      throw new Error(error || `Request failed (${res.status})`);
+    }
+
+    const pending = document.getElementById("pending");
+    pending.textContent = "";
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let reply = "";
+    let streamError = null;
+
+    // SSE frames are separated by a blank line; a frame can straddle chunks.
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+
+      for (const frame of frames) {
+        const event = frame.match(/^event: (.+)$/m)?.[1];
+        const dataLine = frame.match(/^data: (.+)$/m)?.[1];
+        if (!event || !dataLine) continue;
+
+        const data = JSON.parse(dataLine);
+        if (event === "text") {
+          reply += data.text;
+          pending.textContent = stripCvBlock(reply);
+          chatLog.scrollTop = chatLog.scrollHeight;
+        } else if (event === "done") {
+          reply = data.reply;
+        } else if (event === "error") {
+          streamError = data.error;
+        }
+      }
+    }
+
+    pending.removeAttribute("id");
+    pending.textContent = stripCvBlock(reply);
     chatLog.scrollTop = chatLog.scrollHeight;
 
+    if (streamError) throw new Error(streamError);
+
+    const proposedCv = extractCvBlock(reply);
     if (proposedCv) {
       proposedWrap.innerHTML = `
         <h2 style="margin-top:16px;">Proposed revision</h2>

@@ -1,5 +1,16 @@
 node_modules/
+
+# Local secrets for `wrangler dev` -- never commit.
+.dev.vars
 .env
+
+# Wrangler local state (includes the local D1 database, which holds real CV data).
+.wrangler/
+dist/
+
+# Generated at build time from skills/*/SKILL.md.
+src/skills.generated.js
+
+# Legacy Express-era local database. Kept ignored so an existing working copy
+# doesn't suddenly start committing personal CV content.
 data/db.json
-uploads/*
-!uploads/.gitkeep

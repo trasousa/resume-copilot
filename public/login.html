@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in · Resume Copilot</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <main style="max-width: 24rem; margin: 12vh auto; padding: 0 1rem;">
+    <h1 style="margin-bottom: 0.25rem;">Resume Copilot</h1>
+    <p class="muted" style="margin-top: 0;">Sign in to continue.</p>
+
+    <div class="card">
+      <form id="loginForm">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" autofocus required />
+        <div class="row" style="margin-top: 12px;">
+          <button class="btn" type="submit" id="submitBtn">Sign in</button>
+        </div>
+      </form>
+      <div id="status" class="muted" style="margin-top: 10px;"></div>
+    </div>
+  </main>
+
+  <script type="module">
+    const form = document.getElementById("loginForm");
+    const status = document.getElementById("status");
+    const submitBtn = document.getElementById("submitBtn");
+
+    // If auth is disabled (SKIP_AUTH=1, e.g. behind Cloudflare Access), don't
+    // make people type a password that isn't checked.
+    try {
+      const res = await fetch("/api/auth/status");
+      const { authRequired } = await res.json();
+      if (!authRequired) location.href = "index.html";
+    } catch {}
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      status.textContent = "Checking…";
+
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: document.getElementById("password").value }),
+        });
+
+        if (!res.ok) {
+          const { error } = await res.json().catch(() => ({}));
+          throw new Error(error || "Sign in failed.");
+        }
+
+        const next = new URLSearchParams(location.search).get("next");
+        location.href = next && next.startsWith("/") ? next : "index.html";
+      } catch (err) {
+        status.textContent = err.message;
+        submitBtn.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

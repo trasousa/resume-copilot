@@ -1,0 +1,46 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "resume-copilot",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-01",
+
+  // Needed by mammoth (.docx -> text) and docx (text -> .docx), both of which
+  // reach for Node built-ins. Verified bundling under this flag.
+  "compatibility_flags": ["nodejs_compat"],
+
+  "observability": { "enabled": true },
+
+  // Static frontend. Served by the same Worker as the API, so there is no
+  // second deploy and no cross-origin config.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    // Every nav link in public/ is an explicit *.html path. Without this,
+    // the default tidy-URL behaviour 307s /login.html -> /login, so each
+    // page navigation costs an extra round-trip.
+    "html_handling": "none",
+    // Unmatched paths fall through to the Worker, which decides between a
+    // JSON 404 (for /api/*) and serving index.html.
+    "not_found_handling": "single-page-application"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "resume-copilot",
+      // Replace with the id printed by:
+      //   npx wrangler d1 create resume-copilot
+      "database_id": "PLACEHOLDER_RUN_WRANGLER_D1_CREATE"
+    }
+  ],
+
+  "vars": {
+    "ANTHROPIC_MODEL": "claude-opus-5"
+  }
+
+  // Secrets are NOT set here -- they go in the encrypted store:
+  //   npx wrangler secret put ANTHROPIC_API_KEY
+  //   npx wrangler secret put APP_PASSWORD
+  //   npx wrangler secret put SESSION_SECRET
+  // For local dev, put the same keys in .dev.vars (gitignored).
+}

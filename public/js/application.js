@@ -1,4 +1,4 @@
-import { api, escapeHtml, renderNav, showError, checkApiKey } from "./app.js";
+import { api, escapeHtml, renderNav, showError, checkApiKey, safeUrl } from "./app.js";
 
 renderNav("");
 checkApiKey();
@@ -17,6 +17,10 @@ const DOC_TYPES = [
   ["salaryNegotiation", "Salary negotiation"],
   ["applicationForm", "Application form answers"],
   ["referenceList", "Reference list"],
+  // These three had skills defined but nothing reaching them.
+  ["offerComparison", "Offer comparison"],
+  ["linkedin", "LinkedIn tune-up"],
+  ["portfolioCaseStudy", "Portfolio case study"],
 ];
 
 let app = null;
@@ -33,7 +37,7 @@ async function load() {
 function renderHeader() {
   document.getElementById("header").innerHTML = `
     <h1>${escapeHtml(app.company)} — ${escapeHtml(app.role)}</h1>
-    <p class="subtitle">${escapeHtml(app.location || "")} ${app.compEstimate ? "· " + escapeHtml(app.compEstimate) : ""} ${app.link ? `· <a href="${escapeHtml(app.link)}" target="_blank" rel="noopener">posting</a>` : ""}</p>
+    <p class="subtitle">${escapeHtml(app.location || "")} ${app.compEstimate ? "· " + escapeHtml(app.compEstimate) : ""} ${safeUrl(app.link) ? `· <a href="${escapeHtml(safeUrl(app.link))}" target="_blank" rel="noopener">posting</a>` : ""}</p>
   `;
 }
 

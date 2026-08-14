@@ -1,4 +1,4 @@
-import { api, escapeHtml, renderNav, showError, checkApiKey } from "./app.js";
+import { api, escapeHtml, renderNav, showError, checkApiKey, safeUrl } from "./app.js";
 
 renderNav("job-search.html");
 checkApiKey();
@@ -80,7 +80,7 @@ function render(data, cvId) {
             <div>
               <strong>${escapeHtml(j.title)}</strong> — ${escapeHtml(j.company)}<br/>
               <span class="muted">${escapeHtml(j.location || "")} ${j.compEstimate ? "· " + escapeHtml(j.compEstimate) : ""}</span>
-              ${j.url ? `<br/><a href="${escapeHtml(j.url)}" target="_blank" rel="noopener">${escapeHtml(j.url)}</a>` : ""}
+              ${safeUrl(j.url) ? `<br/><a href="${escapeHtml(safeUrl(j.url))}" target="_blank" rel="noopener">${escapeHtml(j.url)}</a>` : ""}
             </div>
             <button class="btn secondary small" data-idx="${i}">Save</button>
           </div>`
@@ -91,7 +91,7 @@ function render(data, cvId) {
     ${
       data.sources?.length
         ? `<div class="card"><h2>Search sources</h2><p class="muted">Every job above came from one of these live search results — check here if anything looks off.</p>
-          <div class="tag-list">${data.sources.map((s) => `<a class="pill muted" href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title || s.url)}</a>`).join("")}</div>
+          <div class="tag-list">${data.sources.filter((s) => safeUrl(s.url)).map((s) => `<a class="pill muted" href="${escapeHtml(safeUrl(s.url))}" target="_blank" rel="noopener">${escapeHtml(s.title || s.url)}</a>`).join("")}</div>
         </div>`
         : ""
     }
