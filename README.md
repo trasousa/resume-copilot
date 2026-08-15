@@ -26,6 +26,13 @@ ANTHROPIC_API_KEY="sk-ant-..."
 SKIP_AUTH="1"
 EOF
 
+# ...or, to use Gemini instead (see "LLM provider" below):
+cat > .dev.vars <<'EOF'
+GOOGLE_API_KEY="AIza..."
+LLM_PROVIDER="gemini"
+SKIP_AUTH="1"
+EOF
+
 npm run dev          # http://localhost:8787
 ```
 
@@ -33,7 +40,7 @@ npm run dev          # http://localhost:8787
 
 ## What's here
 
-- **Worker** (`src/`): [Hono](https://hono.dev) routes calling the Claude API with the relevant skill's `SKILL.md` injected as the system prompt. `src/lib/anthropic.js` is the only file that imports the SDK.
+- **Worker** (`src/`): [Hono](https://hono.dev) routes calling an LLM with the relevant skill's `SKILL.md` injected as the system prompt. Routes import from `src/lib/llm.js`, which dispatches to `src/lib/anthropic.js` (Claude, default) or `src/lib/gemini.js` (Gemini) based on `LLM_PROVIDER` -- see "LLM provider" below.
 - **Frontend** (`public/`): plain HTML/CSS/JS, no build step. Four pages -- **Tracker** (kanban by stage), **CV Store** (upload/paste CVs, mark a master, improve one via streaming chat), **Tailor** (quick job-post-vs-CV check), and **Job Search** (live web search ranked by fit and pay).
 - **Skills** (`skills/`): all 22 skills from [Paramchoudhary/ResumeSkills](https://github.com/Paramchoudhary/ResumeSkills), plus two written for this app -- `job-search-matcher` and `application-tracker`. `src/lib/skills.js` holds the routing table (`SKILL_ROUTES`) mapping each task to the skills that apply.
 - **Database** (`schema.sql`): D1. Four tables -- `cvs`, `applications`, `documents`, `chat_messages`.
@@ -59,6 +66,25 @@ npm run r2:create
 ```
 
 The bucket name (`resume-copilot-originals`) and binding (`ORIGINALS`) are already wired up in `wrangler.jsonc`; `r2:create` just has to run once before you deploy (or `wrangler dev` locally, where Miniflare emulates R2 automatically).
+
+## LLM provider
+
+Claude (Anthropic) by default. To use Gemini instead:
+
+```bash
+npx wrangler secret put GOOGLE_API_KEY   # or GOOGLE_API_KEY in .dev.vars locally
+```
+
+```jsonc
+// wrangler.jsonc
+"vars": {
+  "LLM_PROVIDER": "gemini",
+  "GEMINI_MODEL": "gemini-2.5-flash",  // optional, this is the default
+  ...
+}
+```
+
+Both providers implement the same three-function interface (`src/lib/llm.js` picks between `src/lib/anthropic.js` and `src/lib/gemini.js`), so nothing else about the app changes -- same routes, same streaming chat, same job-search grounding (Gemini's built-in Google Search tool stands in for Anthropic's `web_search`). You only need the one API key for whichever provider is active; the other is never read.
 
 ## Deploy
 

@@ -100,11 +100,12 @@ export async function checkApiKey() {
   try {
     const health = await api("/health");
     if (!health.hasApiKey) {
+      const keyName = health.apiKeyName || "ANTHROPIC_API_KEY";
       const banner = document.createElement("div");
       banner.className = "error-banner";
       banner.innerHTML =
-        "No <code>ANTHROPIC_API_KEY</code> set on the Worker. Run " +
-        "<code>npx wrangler secret put ANTHROPIC_API_KEY</code> " +
+        `No <code>${keyName}</code> set on the Worker. Run ` +
+        `<code>npx wrangler secret put ${keyName}</code> ` +
         "(or add it to <code>.dev.vars</code> locally) for AI features to work.";
       document.querySelector("main")?.prepend(banner);
     }

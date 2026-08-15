@@ -52,14 +52,19 @@
   // *.workers.dev). Until they're real, every request fails closed with a
   // 401, which is the correct default, not a bug.
   "vars": {
+    // "anthropic" (default) or "gemini" -- see src/lib/llm.js. Whichever is
+    // active, only that provider's API key needs to be set as a secret.
+    "LLM_PROVIDER": "anthropic",
     "ANTHROPIC_MODEL": "claude-opus-5",
+    "GEMINI_MODEL": "gemini-2.5-flash",
     "CF_ACCESS_TEAM_DOMAIN": "PLACEHOLDER_YOUR_TEAM.cloudflareaccess.com",
     "CF_ACCESS_AUD": "PLACEHOLDER_AUD_TAG_FROM_ACCESS_APP_OVERVIEW"
   }
 
   // Secrets are NOT set here -- they go in the encrypted store:
   //   npx wrangler secret put ANTHROPIC_API_KEY
-  // For local dev, put the same key in .dev.vars (gitignored). Also set
+  //   npx wrangler secret put GOOGLE_API_KEY   (only if LLM_PROVIDER is "gemini")
+  // For local dev, put the same key(s) in .dev.vars (gitignored). Also set
   // SKIP_AUTH="1" there -- Access never runs in front of `wrangler dev`.
   //
   // To serve this on your own domain instead of *.workers.dev, add a routes

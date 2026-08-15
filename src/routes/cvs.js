@@ -4,7 +4,7 @@ import { extractText } from "../lib/parse.js";
 import { putOriginal, deleteOriginal } from "../lib/r2.js";
 import { cvTextToDocxBuffer, docxFilename } from "../lib/docxOut.js";
 import { buildSkillPrompt, SKILL_ROUTES } from "../lib/skills.js";
-import { runChatStream } from "../lib/anthropic.js";
+import { runChatStream } from "../lib/llm.js";
 
 const router = new Hono();
 

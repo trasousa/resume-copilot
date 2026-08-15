@@ -46,14 +46,20 @@ app.route("/api/tailor", tailorRouter);
 
 app.get("/api/skills", (c) => c.json(listSkills()));
 
-app.get("/api/health", (c) =>
-  c.json({
+app.get("/api/health", (c) => {
+  const provider = (c.env.LLM_PROVIDER || "anthropic").toLowerCase();
+  const isGemini = provider === "gemini";
+  return c.json({
     ok: true,
-    hasApiKey: !!c.env.ANTHROPIC_API_KEY,
-    model: c.env.ANTHROPIC_MODEL || "claude-opus-5",
+    provider,
+    hasApiKey: isGemini ? !!c.env.GOOGLE_API_KEY : !!c.env.ANTHROPIC_API_KEY,
+    apiKeyName: isGemini ? "GOOGLE_API_KEY" : "ANTHROPIC_API_KEY",
+    model: isGemini
+      ? c.env.GEMINI_MODEL || "gemini-2.5-flash"
+      : c.env.ANTHROPIC_MODEL || "claude-opus-5",
     authRequired: c.env.SKIP_AUTH !== "1",
-  })
-);
+  });
+});
 
 app.notFound((c) =>
   c.req.path.startsWith("/api/")

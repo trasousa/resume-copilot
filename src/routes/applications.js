@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import * as db from "../lib/db.js";
 import { STAGES } from "../lib/db.js";
 import { buildSkillPrompt, SKILL_ROUTES, FLAVOR_SKILLS } from "../lib/skills.js";
-import { runTask } from "../lib/anthropic.js";
+import { runTask } from "../lib/llm.js";
 import { cvTextToDocxBuffer, docxFilename } from "../lib/docxOut.js";
 
 const router = new Hono();

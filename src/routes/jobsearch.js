@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import * as db from "../lib/db.js";
 import { buildSkillPrompt, SKILL_ROUTES } from "../lib/skills.js";
-import { runWebSearchTask } from "../lib/anthropic.js";
+import { runWebSearchTask } from "../lib/llm.js";
 
 const router = new Hono();
 
