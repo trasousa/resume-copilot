@@ -157,12 +157,15 @@ async function sendChat() {
       body: JSON.stringify({ message }),
     });
 
-    if (res.status === 401) {
-      location.href = `login.html?next=${encodeURIComponent(location.pathname)}`;
-      return;
-    }
     if (!res.ok) {
-      const { error } = await res.json().catch(() => ({}));
+      let error;
+      try {
+        error = (await res.json()).error;
+      } catch {
+        // Non-JSON 401 body -- Cloudflare Access's re-auth page came back
+        // instead of this API (its session cookie expired mid-chat).
+        if (res.status === 401) error = "Your session expired. Reload the page to sign in again.";
+      }
       throw new Error(error || `Request failed (${res.status})`);
     }
 

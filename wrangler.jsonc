@@ -16,7 +16,7 @@
     "directory": "./public",
     "binding": "ASSETS",
     // Every nav link in public/ is an explicit *.html path. Without this,
-    // the default tidy-URL behaviour 307s /login.html -> /login, so each
+    // the default tidy-URL behaviour 307s /index.html -> /index, so each
     // page navigation costs an extra round-trip.
     "html_handling": "none",
     // Unmatched paths fall through to the Worker, which decides between a
@@ -44,17 +44,23 @@
     }
   ],
 
+  // CF_ACCESS_TEAM_DOMAIN / CF_ACCESS_AUD are not secrets -- they only
+  // identify which Access application's JWTs this Worker accepts, not a
+  // bearer credential. Replace the two placeholders once you've set up the
+  // Access application -- see src/lib/auth.js and README.md "Sign-in" (it
+  // requires the custom domain below to exist first: Access can't front
+  // *.workers.dev). Until they're real, every request fails closed with a
+  // 401, which is the correct default, not a bug.
   "vars": {
-    "ANTHROPIC_MODEL": "claude-opus-5"
+    "ANTHROPIC_MODEL": "claude-opus-5",
+    "CF_ACCESS_TEAM_DOMAIN": "PLACEHOLDER_YOUR_TEAM.cloudflareaccess.com",
+    "CF_ACCESS_AUD": "PLACEHOLDER_AUD_TAG_FROM_ACCESS_APP_OVERVIEW"
   }
 
   // Secrets are NOT set here -- they go in the encrypted store:
   //   npx wrangler secret put ANTHROPIC_API_KEY
-  //   npx wrangler secret put GOOGLE_CLIENT_ID
-  //   npx wrangler secret put GOOGLE_CLIENT_SECRET
-  //   npx wrangler secret put ALLOWED_EMAILS      # comma-separated
-  //   npx wrangler secret put SESSION_SECRET      # any long random string
-  // For local dev, put the same keys in .dev.vars (gitignored).
+  // For local dev, put the same key in .dev.vars (gitignored). Also set
+  // SKIP_AUTH="1" there -- Access never runs in front of `wrangler dev`.
   //
   // To serve this on your own domain instead of *.workers.dev, add a routes
   // entry once the domain is on Cloudflare -- see README.md "Custom domain".

@@ -2,7 +2,7 @@
 
 A small full-stack app that ties Claude + a set of resume/career skills together into one workflow: paste a job post and get a tailored CV, optimize your CV interactively, search the live web for roles that fit you, and track every application through its stages -- generating cover letters, cold emails, interview prep, and salary negotiation briefs along the way.
 
-Runs on **Cloudflare Workers**: one Worker serves the static frontend and the API, with **D1** for structured data, **R2** for original CV files, and **Google sign-in** gating the whole thing.
+Runs on **Cloudflare Workers**: one Worker serves the static frontend and the API, with **D1** for structured data, **R2** for original CV files, and **Cloudflare Access (Zero Trust)** gating the whole thing at the edge.
 
 ## Quick start
 
@@ -18,14 +18,12 @@ npm run db:init
 #    see "Original files" below)
 npm run r2:create
 
-# 3. Google OAuth client -- see "Sign-in" below for the Console steps
-# 4. Local secrets
+# 3. Local secrets. SKIP_AUTH is for `wrangler dev` only -- Access doesn't
+#    run in front of localhost, so there's nothing else that could gate
+#    local requests. See "Sign-in" below for the real deployment.
 cat > .dev.vars <<'EOF'
 ANTHROPIC_API_KEY="sk-ant-..."
-GOOGLE_CLIENT_ID="....apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET="..."
-ALLOWED_EMAILS="you@gmail.com"
-SESSION_SECRET="any-long-random-string"
+SKIP_AUTH="1"
 EOF
 
 npm run dev          # http://localhost:8787
@@ -49,36 +47,6 @@ Because Workers have no filesystem, `scripts/build-skills.mjs` inlines the skill
 2. **Tailor** -- paste a job posting, pick a base CV and optionally a role "flavor" (tech/executive/academic/creative/career-change), and get a match analysis plus a tailored CV.
 3. **Job Search** -- live web search for openings matching your CV and a location, ranked by fit and estimated compensation. Every result is backed by a real search hit; sources are shown so you can check.
 4. **Tracker** -- applications grouped by stage (Saved → Applied → Screening → Interview → Offer, plus Rejected/Withdrawn), with stalled ones flagged. Click into one to tailor a CV to that posting, or generate a cover letter, cold email, interview prep pack, negotiation brief, application-form answers, reference list, offer comparison, LinkedIn tune-up, or portfolio case study.
-
-## Sign-in
-
-Google OAuth, gated to an allow-list -- not a full accounts system. Anyone can start the sign-in flow, but a session is only issued if the verified email is in `ALLOWED_EMAILS`. There's no per-user data: everyone on the allow-list shares one CV store, tracker, and everything else. If you want separate data per person, that's a bigger change than this app makes -- ask if you want it built.
-
-**Set up the OAuth client** (one-time, in [Google Cloud Console](https://console.cloud.google.com/apis/credentials)):
-
-1. Create a project if you don't have one already.
-2. **APIs & Services → Credentials → Create Credentials → OAuth client ID**.
-3. Application type: **Web application**.
-4. Under **Authorized redirect URIs**, add one entry per host you'll actually use it from:
-   - `https://resume-copilot.<your-subdomain>.workers.dev/api/auth/google/callback` (always works, no domain needed)
-   - `https://resume.yourdomain.com/api/auth/google/callback` (once you've set up the custom domain below)
-   - `http://localhost:8787/api/auth/google/callback` (for `wrangler dev`)
-5. Save. You'll get a **Client ID** and **Client secret**.
-6. If prompted to configure the OAuth consent screen, "External" + "Testing" mode is enough for personal use -- add your own email under **Test users**.
-
-**Set the secrets:**
-
-```bash
-npx wrangler secret put GOOGLE_CLIENT_ID
-npx wrangler secret put GOOGLE_CLIENT_SECRET
-npx wrangler secret put ALLOWED_EMAILS      # comma-separated, e.g. "you@gmail.com"
-npx wrangler secret put SESSION_SECRET      # openssl rand -base64 32
-npx wrangler secret put ANTHROPIC_API_KEY
-```
-
-If you'd rather not manage OAuth at all, put **Cloudflare Access** in front of the Worker instead and set `SKIP_AUTH=1` -- Access then handles identity at the edge and this app trusts it completely.
-
-**Do not deploy without one of the two.** There's no other protection: an unprotected deployment exposes your CV store and your Anthropic API key to anyone who finds the URL.
 
 ## Original files
 
@@ -126,9 +94,39 @@ Cloudflare Workers custom domains require the domain's DNS to be on Cloudflare -
    ]
    ```
 
-5. **Add the new callback URL to the Google OAuth client** -- back in Google Cloud Console, add `https://resume.yourdomain.com/api/auth/google/callback` to Authorized redirect URIs (see "Sign-in" above). Sign-in will fail with "redirect_uri_mismatch" until you do this -- Google checks it exactly.
+The `*.workers.dev` URL keeps existing alongside the custom domain, but see "Sign-in" below -- once Access is set up, it can't protect that URL, so treat it as unusable for real traffic rather than an alternate way in.
 
-The `*.workers.dev` URL keeps working alongside the custom domain; there's no need to remove it.
+## Sign-in
+
+**Requires the custom domain above.** Cloudflare Access protects a hostname by intercepting traffic to it at Cloudflare's edge, before it ever reaches the Worker -- so it needs a real Cloudflare zone to attach to. It cannot front `*.workers.dev`, which is a domain Cloudflare shares across every account, not one you control. Set up the custom domain first.
+
+Single-tenant, same as this app has been throughout: whoever your Access policy lets through shares one CV store, tracker, and everything else. There's no per-user data. If you want that, it's a bigger change than this app makes -- ask if you want it built.
+
+**Set up the Access application** (one-time, in the [Zero Trust dashboard](https://one.dash.cloudflare.com/)):
+
+1. If this is the first time you're using Zero Trust on the account, it'll prompt you to pick a team name (e.g. `yourteam`) -- that becomes `yourteam.cloudflareaccess.com`. Free for up to 50 users, which this app will never come close to.
+2. **Access → Applications → Add an application → Self-hosted.**
+3. **Application domain**: your Worker's custom domain (e.g. `resume.yourdomain.com`) -- not the `*.workers.dev` URL, which Access can't protect (see above).
+4. **Identity providers**: pick one under Settings → Authentication if you haven't already.
+   - **Google** -- gives users a "Sign in with Google" screen; needs a Google Cloud OAuth client, but registered directly with Cloudflare -- this app has no OAuth code of its own.
+   - **One-time PIN** -- Cloudflare emails a 6-digit code, no external identity provider at all. The simplest option if the goal is keeping everything inside Cloudflare.
+5. **Policy**: Allow, Include → Emails → your email(s). This is the allow-list -- it replaces what `ALLOWED_EMAILS` used to do at the app level, and it's the actual authorization check: you cannot end up with a validly-signed Access JWT for this app unless this policy let you through.
+6. On the application's **Overview** page, copy the **Application Audience (AUD) tag**.
+
+**Configure the Worker** -- edit the two placeholders in `wrangler.jsonc` under `vars`:
+
+```jsonc
+"CF_ACCESS_TEAM_DOMAIN": "yourteam.cloudflareaccess.com",
+"CF_ACCESS_AUD": "<the AUD tag from step 6>"
+```
+
+Neither is a secret -- they only identify which Access application's JWTs the Worker accepts, not a bearer credential, so they live in version control like the D1 database id above. Redeploy (`npm run deploy`) after editing them.
+
+**That's the whole setup -- no `wrangler secret put` beyond `ANTHROPIC_API_KEY`.** Visit the custom domain; Access intercepts you, runs whichever identity provider you picked, and only then forwards the request to the Worker with a signed JWT proving who you are. The Worker verifies that JWT itself (`src/lib/auth.js`) rather than just trusting that traffic reaching it must be legitimate -- which is what keeps the `*.workers.dev` URL locked out automatically: Access never fronts it, so no request there can ever carry a validly-signed JWT, and the Worker rejects everything without one.
+
+Until both `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are set to real values, every request fails closed with a 401. That's the correct default while you're mid-setup, not a bug to work around.
+
+To sign out, the nav's **Log out** button sends the browser to `/cdn-cgi/access/logout` -- a path Access reserves on every hostname it protects and intercepts itself; this app has no session of its own to clear.
 
 ## Notes on what's intentionally simple
 

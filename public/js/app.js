@@ -5,19 +5,17 @@ export async function api(path, options = {}) {
     body: options.body instanceof FormData ? options.body : options.body ? JSON.stringify(options.body) : undefined,
   });
 
-  // Session expired or never established -- bounce to login rather than
-  // showing a confusing error on every widget.
-  if (res.status === 401 && !location.pathname.endsWith("login.html")) {
-    location.href = `login.html?next=${encodeURIComponent(location.pathname)}`;
-    throw new Error("Not authenticated");
-  }
-
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
     try {
-      const data = await res.json();
-      message = data.error || message;
-    } catch {}
+      message = (await res.json()).error || message;
+    } catch {
+      // A 401 with a non-JSON body almost always means Cloudflare Access's
+      // own re-auth page came back instead of this API (its session cookie
+      // expired mid-use). A full reload re-triggers the Access redirect;
+      // there's nothing this app itself can do about that.
+      if (res.status === 401) message = "Your session expired. Reload the page to sign in again.";
+    }
     throw new Error(message);
   }
   if (res.status === 204) return null;
@@ -63,9 +61,12 @@ export function renderNav(active) {
       <button class="btn secondary small" id="logoutBtn">Log out</button>
     </header>`;
 
-  document.getElementById("logoutBtn").onclick = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    location.href = "login.html";
+  // /cdn-cgi/access/logout is a path Cloudflare Access reserves on every
+  // hostname it protects -- it's intercepted at the edge (this Worker never
+  // sees the request), clears the Access session, and shows Cloudflare's own
+  // signed-out page. There's no app-level session to clear here.
+  document.getElementById("logoutBtn").onclick = () => {
+    location.href = "/cdn-cgi/access/logout";
   };
 
   fetch("/api/auth/me")

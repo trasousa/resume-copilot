@@ -8,14 +8,7 @@
 import { Hono } from "hono";
 
 import { listSkills } from "./lib/skills.js";
-import {
-  requireAuth,
-  currentUser,
-  startGoogleAuth,
-  completeGoogleAuth,
-  setSessionCookie,
-  clearSessionCookie,
-} from "./lib/auth.js";
+import { requireAuth, currentUser } from "./lib/auth.js";
 
 import cvsRouter from "./routes/cvs.js";
 import applicationsRouter from "./routes/applications.js";
@@ -30,36 +23,16 @@ const app = new Hono();
 // `Access-Control-Allow-Origin: *` with no auth behind it, which let any page
 // in the user's browser read the whole CV store.
 
+// Every /api/* route requires a valid Cloudflare Access JWT (see
+// lib/auth.js). There's no bypass list here and no login/logout routes of
+// this app's own -- signing in and out is entirely Access's hosted UI
+// (/cdn-cgi/access/logout, intercepted by Access before it ever reaches this
+// Worker) and your Zero Trust policy.
 app.use("/api/*", requireAuth());
-
-// --- auth -------------------------------------------------------------------
-
-app.get("/api/auth/status", (c) =>
-  c.json({ authRequired: c.env.SKIP_AUTH !== "1" })
-);
 
 app.get("/api/auth/me", async (c) =>
   c.json({ email: (await currentUser(c))?.email || null })
 );
-
-app.get("/api/auth/google/start", async (c) =>
-  c.redirect(await startGoogleAuth(c), 302)
-);
-
-app.get("/api/auth/google/callback", async (c) => {
-  try {
-    const email = await completeGoogleAuth(c);
-    await setSessionCookie(c, email);
-    return c.redirect("/", 302);
-  } catch (err) {
-    return c.redirect(`/login.html?error=${encodeURIComponent(err.message)}`, 302);
-  }
-});
-
-app.post("/api/auth/logout", (c) => {
-  clearSessionCookie(c);
-  return c.json({ ok: true });
-});
 
 // --- api --------------------------------------------------------------------
 

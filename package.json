@@ -24,6 +24,7 @@
     "@anthropic-ai/sdk": "^0.117.1",
     "docx": "^9.1.0",
     "hono": "^4.13.2",
+    "jose": "^6.2.8",
     "mammoth": "^1.8.0"
   },
   "devDependencies": {
