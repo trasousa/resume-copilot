@@ -30,6 +30,13 @@
       <label>Other preferences (optional)</label>
       <input type="text" id="notes" placeholder="e.g. prefer ML/data roles, avoid agencies" />
 
+      <label>Job type</label>
+      <div class="row" id="jobTypeChips">
+        <button type="button" class="chip active" data-type="full-time">Full-time</button>
+        <button type="button" class="chip" data-type="contract">Contract</button>
+        <button type="button" class="chip" data-type="remote">Remote</button>
+      </div>
+
       <div class="row" style="margin-top:12px;">
         <button class="btn" id="searchBtn">Search</button>
         <span id="status" class="muted"></span>

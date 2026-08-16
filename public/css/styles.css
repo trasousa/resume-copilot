@@ -443,3 +443,12 @@ nav.tabs a.active { background: var(--advocate-surface-container); color: var(--
 .vault-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
 .vault-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; background: var(--advocate-surface-container-low); }
 .vault-card-title { font-weight: 700; margin: 8px 0 6px; }
+
+.chip {
+  padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-soft);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.chip.active { background: var(--advocate-surface-container); color: var(--advocate-primary); border-color: var(--advocate-primary-container); }
+
+.job-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.job-card { margin-bottom: 0; }
