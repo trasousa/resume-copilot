@@ -65,15 +65,16 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # tail_consumers is currently commented out in wrangler.jsonc (Tail
-      # Workers need the Workers Paid plan) -- this step is a harmless no-op
-      # until it's re-enabled, kept here so deploy order is already correct
-      # (Tail Worker before main Worker, so the reference is never briefly
-      # dangling) whenever that happens.
-      - name: Deploy Tail Worker
-        run: npm run deploy:tail
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      # Tail Worker deploy is intentionally NOT run here. tail_consumers is
+      # commented out in wrangler.jsonc (Tail Workers need the Workers Paid
+      # plan), and observability is instead recovered on the free tier via
+      # agents/observability's subscribe() straight in the main Worker (see
+      # src/index.js) plus this Worker's own `observability: { enabled: true
+      # }` -- see docs/superpowers/specs/2026-08-16-resume-agent-core-design.md.
+      # Deploying tail-worker/ here would just redeploy an orphaned Worker
+      # nothing forwards events to. Re-add this step (before the main Worker
+      # step, so tail_consumers' reference is never briefly dangling) if/when
+      # the account upgrades and tail_consumers is uncommented.
       - name: Deploy main Worker
         run: npm run deploy
         env:
