@@ -76,7 +76,13 @@ async function verifyAccessJwt(request, env) {
       issuer: `https://${CF_ACCESS_TEAM_DOMAIN}`,
       audience: CF_ACCESS_AUD,
     });
-    return { email: String(payload.email || "").toLowerCase() };
+    // A verified JWT with no email claim is not usable identity -- Task 3's
+    // Agent routing keys the per-user Durable Object instance directly off
+    // this value, so a falsy email must never come back as a "successful"
+    // identity: every such caller would silently collapse onto one shared
+    // instance addressed by "".
+    if (!payload.email) return null;
+    return { email: String(payload.email).toLowerCase() };
   } catch {
     // Expired, wrong audience, bad signature, wrong issuer -- all the same
     // outcome from the caller's side: not authenticated.
