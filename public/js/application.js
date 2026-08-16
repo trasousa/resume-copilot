@@ -1,4 +1,5 @@
 import { api, escapeHtml, renderNav, showError, checkApiKey, safeUrl } from "./app.js";
+import { mountCvDocument } from "./cv-doc.js";
 
 renderNav("");
 checkApiKey();
@@ -32,6 +33,10 @@ async function load() {
   renderCvStatus();
   renderDocButtons();
   renderDocs();
+  if (app.cvId) {
+    const cv = await api(`/cvs/${app.cvId}`);
+    renderTailoredCv(cv.content, "");
+  }
 }
 
 function renderHeader() {
@@ -92,13 +97,13 @@ document.getElementById("tailorBtn").onclick = async () => {
       body: { flavor: document.getElementById("flavor").value },
     });
     const analysisText = analysis.replace(/```CV\n[\s\S]*?\n```/, "").trim();
-    resultWrap.innerHTML = `
-      <div class="doc-content" style="margin-top:12px;">${escapeHtml(analysisText)}</div>
-      ${tailoredCv ? `<div class="row" style="margin-top:10px;"><a class="btn secondary small" href="/api/applications/${appId}/tailored/download">Download tailored CV (.docx)</a></div>` : ""}
-    `;
     if (tailoredCv) {
       app.cvId = tailoredCv.id;
       renderCvStatus();
+      renderTailoredCv(tailoredCv.content, analysisText);
+    } else {
+      resultWrap.innerHTML = `<div class="doc-content" style="margin-top:12px;">${escapeHtml(analysisText)}</div>
+        <p class="muted" style="margin-top:8px;">No structured tailored CV was returned — try again.</p>`;
     }
   } catch (err) {
     showError(main, err);
@@ -107,6 +112,32 @@ document.getElementById("tailorBtn").onclick = async () => {
     btn.disabled = false;
   }
 };
+
+function renderTailoredCv(content, analysisText) {
+  const resultWrap = document.getElementById("tailorResult");
+  resultWrap.innerHTML = `
+    ${analysisText ? `<div class="doc-content" style="margin: 12px 0;">${escapeHtml(analysisText)}</div>` : ""}
+    <div id="tailoredCvMount"></div>
+  `;
+
+  const doc = mountCvDocument(document.getElementById("tailoredCvMount"), {
+    content,
+    editable: true,
+    saveLabel: "Save edits as new version",
+    onSave: async (text) => {
+      const saved = await api(`/cvs/${app.cvId}/chat/accept`, {
+        method: "POST",
+        body: { content: text, label: `${app.company} - ${app.role}` },
+      });
+      app.cvId = saved.id;
+      await api(`/applications/${appId}`, { method: "PATCH", body: { cvId: saved.id } });
+    },
+  });
+
+  doc.setExtraActions(
+    `<a class="btn secondary small" href="/api/applications/${appId}/tailored/download">Download .docx</a>`
+  );
+}
 
 function renderDocButtons() {
   document.getElementById("docButtons").innerHTML = DOC_TYPES.map(
@@ -122,7 +153,7 @@ async function generateDoc(type) {
   const pendingId = `pending-${type}`;
   list.insertAdjacentHTML("afterbegin", `<div class="card" id="${pendingId}"><span class="spinner"></span> generating ${escapeHtml(type)}…</div>`);
   try {
-    const doc = await api(`/applications/${appId}/documents`, { method: "POST", body: { type } });
+    await api(`/applications/${appId}/documents`, { method: "POST", body: { type } });
     document.getElementById(pendingId)?.remove();
     renderDocs();
   } catch (err) {

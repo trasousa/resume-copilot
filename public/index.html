@@ -25,6 +25,7 @@
   <dialog id="newAppDialog">
     <div class="card">
       <h2>New application</h2>
+      <div id="newAppCvHint"></div>
       <label>Company</label>
       <input type="text" id="f-company" />
       <label>Role</label>
@@ -32,8 +33,12 @@
       <label>Location</label>
       <input type="text" id="f-location" placeholder="Berlin, Remote, ..." />
       <label>Posting link (optional)</label>
-      <input type="text" id="f-link" />
-      <label>Job post text (paste it here so the right skills can tailor your CV, cover letter, etc. to it)</label>
+      <div class="row">
+        <input type="text" id="f-link" style="flex:1;" />
+        <button type="button" class="btn secondary small" id="f-fetch">Fetch job post</button>
+      </div>
+      <span id="f-fetch-status" class="muted"></span>
+      <label>Job post text (paste it here, or fetch it from the link above, so the right skills can tailor your CV, cover letter, etc. to it)</label>
       <textarea id="f-jobpost" rows="6"></textarea>
       <label>Starting stage</label>
       <select id="f-stage">
