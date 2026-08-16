@@ -309,9 +309,7 @@ export async function getApplicationStats(db) {
   return {
     total: row?.total ?? 0,
     interviews: row?.interviews ?? 0,
-    interviewsActive: row?.interviews ?? 0,
     offers: row?.offers ?? 0,
-    offersPending: row?.offers ?? 0,
     avgMatch: row?.avg_match != null ? Math.round(row.avg_match) : null,
   };
 }
