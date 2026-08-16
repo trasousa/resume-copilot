@@ -40,7 +40,7 @@ function systemInstruction(stable, volatile) {
   return { parts: [{ text }] };
 }
 
-async function callGemini(env, path, body) {
+async function callGemini(env, path, body, { grounded = false } = {}) {
   const res = await fetch(`${BASE_URL}/models/${path}`, {
     method: "POST",
     headers: {
@@ -51,6 +51,27 @@ async function callGemini(env, path, body) {
   });
   if (!res.ok) {
     const errBody = await res.text();
+    if (res.status === 429) {
+      // Grounded (googleSearch tool) requests get a completely separate,
+      // much stingier quota than plain generation -- free-tier (no billing)
+      // API keys get zero grounding quota, so this 429 fires on literally
+      // the first grounded call of a session, not after real repeated use.
+      // Confirmed directly against the API: plain generateContent succeeds
+      // instantly on the same key that 429s the moment googleSearch is
+      // attached. A generic "rate limit" message is actively misleading
+      // here -- the fix is enabling billing, not waiting and retrying.
+      const err = new Error(
+        grounded
+          ? "Job search needs Google Search grounding, which has zero quota on free-tier " +
+            "Gemini API keys -- this isn't a real rate limit. Enable billing on the Google " +
+            "Cloud project behind your GOOGLE_API_KEY at https://aistudio.google.com/apikey, " +
+            "then try again."
+          : "Gemini rate limit or quota exceeded. Wait a bit and try again, or check your plan " +
+            "at https://ai.dev/rate-limit."
+      );
+      err.status = 429;
+      throw err;
+    }
     const err = new Error(`Gemini API error (${res.status}): ${errBody.slice(0, 500)}`);
     err.status = res.status >= 400 && res.status < 500 ? 502 : 500;
     throw err;
@@ -150,6 +171,9 @@ export function runChatStream({ env, stable, volatile, messages, maxTokens = 800
         );
 
         if (!res.ok) {
+          if (res.status === 429) {
+            throw new Error("Gemini rate limit or quota exceeded. Wait a bit and try again.");
+          }
           const errBody = await res.text();
           throw new Error(`Gemini API error (${res.status}): ${errBody.slice(0, 500)}`);
         }
@@ -162,10 +186,14 @@ export function runChatStream({ env, stable, volatile, messages, maxTokens = 800
         let hitMaxTokens = false;
 
         // SSE frames are separated by a blank line; a frame can straddle chunks.
+        // The API sends CRLF line endings, so normalize before splitting --
+        // otherwise "\n\n" never matches the "\r\n\r\n" it actually sends and
+        // every frame gets stuck in `buffer`, silently dropped when the
+        // stream ends.
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+          buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
 
           const frames = buffer.split("\n\n");
           buffer = frames.pop() ?? "";
@@ -214,12 +242,17 @@ export function runChatStream({ env, stable, volatile, messages, maxTokens = 800
  * jobsearch.js) already folds location into the prompt text itself.
  */
 export async function runWebSearchTask({ env, stable, volatile, prompt, maxTokens = 16000 }) {
-  const data = await callGemini(env, `${modelFor(env)}:generateContent`, {
-    systemInstruction: systemInstruction(stable, volatile),
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    tools: [{ googleSearch: {} }],
-    generationConfig: { maxOutputTokens: maxTokens },
-  });
+  const data = await callGemini(
+    env,
+    `${modelFor(env)}:generateContent`,
+    {
+      systemInstruction: systemInstruction(stable, volatile),
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      tools: [{ googleSearch: {} }],
+      generationConfig: { maxOutputTokens: maxTokens },
+    },
+    { grounded: true }
+  );
 
   const candidate = data.candidates?.[0];
   assertComplete(candidate);

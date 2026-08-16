@@ -14,7 +14,9 @@ import cvsRouter from "./routes/cvs.js";
 import applicationsRouter from "./routes/applications.js";
 import documentsRouter from "./routes/documents.js";
 import jobsearchRouter from "./routes/jobsearch.js";
+import jobpostRouter from "./routes/jobpost.js";
 import tailorRouter from "./routes/tailor.js";
+import profileRouter from "./routes/profile.js";
 
 const app = new Hono();
 
@@ -42,7 +44,9 @@ app.route("/api/cvs", cvsRouter);
 app.route("/api/applications/:id/documents", documentsRouter);
 app.route("/api/applications", applicationsRouter);
 app.route("/api/jobsearch", jobsearchRouter);
+app.route("/api/jobpost", jobpostRouter);
 app.route("/api/tailor", tailorRouter);
+app.route("/api/profile", profileRouter);
 
 app.get("/api/skills", (c) => c.json(listSkills()));
 
