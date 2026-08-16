@@ -10,6 +10,11 @@
 
   "observability": { "enabled": true },
 
+  // Forwards agents:* diagnostics-channel events (RPC calls, state changes,
+  // lifecycle) to the Tail Worker in tail-worker/ -- production only, no
+  // local-dev equivalent. See tail-worker/index.js.
+  "tail_consumers": [{ "service": "resume-copilot-tail" }],
+
   // Static frontend. Served by the same Worker as the API, so there is no
   // second deploy and no cross-origin config.
   "assets": {
