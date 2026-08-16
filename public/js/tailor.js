@@ -46,7 +46,10 @@ document.getElementById("runBtn").onclick = async () => {
 };
 
 function render(data) {
-  const analysisText = data.analysis.replace(/```CV\n[\s\S]*?\n```/, "").trim();
+  const analysisText = data.analysis
+    .replace(/```CV\n[\s\S]*?\n```/, "")
+    .replace(/```KEYWORDS\n[\s\S]*?\n```/, "")
+    .trim();
   resultEl.innerHTML = `
     <div class="card">
       <h2>Match analysis</h2>

@@ -160,7 +160,10 @@ document.getElementById("tailorBtn").onclick = async () => {
       method: "POST",
       body: { flavor: document.getElementById("flavor").value },
     });
-    const analysisText = analysis.replace(/```CV\n[\s\S]*?\n```/, "").trim();
+    const analysisText = analysis
+      .replace(/```CV\n[\s\S]*?\n```/, "")
+      .replace(/```KEYWORDS\n[\s\S]*?\n```/, "")
+      .trim();
     if (tailoredCv) {
       app.cvId = tailoredCv.id;
       renderCvStatus();
