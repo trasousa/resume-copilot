@@ -50,3 +50,29 @@ jobs:
       # and validates config without touching the Cloudflare API (verified
       # locally in an unauthenticated environment before wiring this up).
       - run: npm run build
+
+  deploy:
+    needs: [secret-scan, lint, build]
+    # Only ever deploys from main, and only on an actual push (a merged PR),
+    # never on pull_request -- a PR from a fork could otherwise exfiltrate
+    # the deploy secrets just by opening it.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Deploy order matters: the main Worker's tail_consumers references
+      # resume-copilot-tail by name (see wrangler.jsonc) -- deploying it
+      # first means the reference is never briefly dangling.
+      - name: Deploy Tail Worker
+        run: npm run deploy:tail
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: Deploy main Worker
+        run: npm run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
