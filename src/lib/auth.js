@@ -64,15 +64,15 @@ function jwksFor(env) {
   return jwks;
 }
 
-async function verifyAccessJwt(c) {
-  const { CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD } = c.env;
+async function verifyAccessJwt(request, env) {
+  const { CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD } = env;
   if (!CF_ACCESS_TEAM_DOMAIN || !CF_ACCESS_AUD) return null;
 
-  const token = c.req.header(HEADER);
+  const token = request.headers.get(HEADER);
   if (!token) return null;
 
   try {
-    const { payload } = await jwtVerify(token, jwksFor(c.env), {
+    const { payload } = await jwtVerify(token, jwksFor(env), {
       issuer: `https://${CF_ACCESS_TEAM_DOMAIN}`,
       audience: CF_ACCESS_AUD,
     });
@@ -84,11 +84,28 @@ async function verifyAccessJwt(c) {
   }
 }
 
+/**
+ * Resolves the authenticated identity from a raw Request -- used both by
+ * the Hono middleware below and by the Agent routing in src/index.js, which
+ * runs before Hono and has no Hono context to read a header from.
+ *
+ * In SKIP_AUTH mode (wrangler dev only -- Access never reaches localhost),
+ * identity comes from an X-Dev-User header instead of a real JWT, defaulting
+ * to "dev@local" if absent. This is what lets the per-user Agent routing be
+ * exercised locally with multiple distinct identities (send different
+ * X-Dev-User values) without needing a real Access session.
+ */
+export async function resolveIdentity(request, env) {
+  if (env.SKIP_AUTH === "1") {
+    const devUser = request.headers.get("X-Dev-User") || "dev@local";
+    return { email: devUser.toLowerCase() };
+  }
+  return verifyAccessJwt(request, env);
+}
+
 export function requireAuth() {
   return async (c, next) => {
-    if (c.env.SKIP_AUTH === "1") return next(); // wrangler dev only
-
-    const user = await verifyAccessJwt(c);
+    const user = await resolveIdentity(c.req.raw, c.env);
     if (!user) return c.json({ error: "Not authenticated." }, 401);
 
     c.set("user", user);
@@ -98,6 +115,5 @@ export function requireAuth() {
 
 /** Best-effort: who's signed in, or null. Used by /api/auth/me. */
 export async function currentUser(c) {
-  if (c.env.SKIP_AUTH === "1") return null;
-  return c.get("user") || (await verifyAccessJwt(c));
+  return c.get("user") || (await resolveIdentity(c.req.raw, c.env));
 }
