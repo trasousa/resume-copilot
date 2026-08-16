@@ -28,7 +28,7 @@ function renderOnboarding() {
         <p class="subtitle" id="stepSubtitle" style="margin-bottom: 0;"></p>
       </div>
       <div style="padding: 28px;" id="stepBody"></div>
-      <div class="row between" style="padding: 16px 28px; border-top: 1px solid var(--border); background: var(--advocate-surface-container-low);">
+      <div class="row between" id="wizardFooter" style="padding: 16px 28px; border-top: 1px solid var(--border); background: var(--advocate-surface-container-low);">
         <button class="btn secondary" id="backBtn" ${step === 1 ? "disabled" : ""}>Back</button>
         <button class="btn secondary" id="skipBtn">Skip for now</button>
       </div>
@@ -106,8 +106,7 @@ function renderStep2() {
     <label>Minimum target compensation (optional)</label>
     <input type="text" id="p-minComp" placeholder="e.g. €80,000" />
   `;
-  document.querySelector('[data-step-continue]')?.remove();
-  const footer = document.querySelector("#profileMain .row.between");
+  const footer = document.getElementById("wizardFooter");
   const cont = document.createElement("button");
   cont.className = "btn";
   cont.textContent = "Continue";
