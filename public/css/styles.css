@@ -398,3 +398,20 @@ dialog .card { box-shadow: none; border: none; margin: 0; }
 
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
 @media (max-width: 900px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+
+header.topbar { padding: 12px 28px; gap: 24px; }
+.brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--advocate-primary); text-decoration: none; }
+.brand-mark {
+  width: 28px; height: 28px; border-radius: 8px; background: var(--advocate-primary-container); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 14px;
+}
+nav.tabs { flex: 1; display: flex; gap: 4px; }
+nav.tabs a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; text-decoration: none; color: var(--ink-soft); font-size: 14px; font-weight: 600; }
+nav.tabs a:hover { background: var(--advocate-surface-container-low); }
+nav.tabs a.active { background: var(--advocate-surface-container); color: var(--advocate-primary); }
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--ink-soft);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.icon-btn:hover { background: var(--advocate-surface-container-low); }
+.icon-btn:disabled { opacity: 0.5; cursor: default; }
