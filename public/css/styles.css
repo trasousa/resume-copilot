@@ -142,6 +142,27 @@ input[type="text"], input[type="email"], input[type="number"], textarea, select 
 
 textarea { resize: vertical; min-height: 90px; }
 
+input[type="file"] {
+  width: 100%;
+  padding: 6px 0;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--ink-soft);
+}
+input[type="file"]::file-selector-button {
+  padding: 7px 14px;
+  margin-right: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover { background: var(--advocate-surface-container-low); }
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -443,6 +464,23 @@ nav.tabs a.active { background: var(--advocate-surface-container); color: var(--
 .vault-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
 .vault-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; background: var(--advocate-surface-container-low); }
 .vault-card-title { font-weight: 700; margin: 8px 0 6px; }
+
+/* CV Store: cv-store.js renders each stored CV as a plain `.row.between`
+   list item with no dedicated class hook (its markup/behavior is out of
+   scope for this pass), so we scope by the #cvList container instead and
+   give each row the same card treatment as .vault-card above. The
+   `!important` on padding is needed only because cv-store.js sets an
+   inline `padding:10px 0` on each row — border-bottom is already inline
+   at the same value as our full border, so it composes without a clash. */
+#cvList > .row.between {
+  background: var(--advocate-surface-container-low);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 16px !important;
+  margin-bottom: 10px;
+}
+#cvList > .row.between:last-child { margin-bottom: 0; }
 
 .chip {
   padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-soft);
