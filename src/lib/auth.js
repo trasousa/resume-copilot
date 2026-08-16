@@ -40,7 +40,9 @@
 //
 // Until both are set correctly, every request fails closed with a 401 --
 // there is no unauthenticated fallback mode short of SKIP_AUTH=1, which is
-// for `wrangler dev` only (Access never runs in front of localhost).
+// for `wrangler dev` only (Access never runs in front of localhost -- it
+// intercepts at Cloudflare's edge network, which local dev traffic never
+// reaches, domain or no domain).
 
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
