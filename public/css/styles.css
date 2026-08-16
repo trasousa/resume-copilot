@@ -510,6 +510,6 @@ mark.kw-highlight { background: var(--advocate-success-soft); color: var(--advoc
 .template-row:hover { border-color: var(--advocate-primary-container); }
 
 @media print {
-  header.topbar, #kindTabs, .studio-split > div:first-child, .row.between .btn, .row.between .icon-btn { display: none !important; }
+  header.topbar, #outreachMain #kindTabs, #outreachMain .studio-split > div:first-child, #outreachMain .row.between .btn, #outreachMain .row.between .icon-btn { display: none !important; }
   #editorPane { border: none; box-shadow: none; padding: 0; }
 }

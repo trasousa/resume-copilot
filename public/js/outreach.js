@@ -27,10 +27,11 @@ document.querySelectorAll("#toneGrid .chip").forEach((btn) => {
 
 async function loadCvs() {
   const cvs = await ensureCvsOrEmptyState(main, "Outreach drafting needs a CV to work from — add one first.");
-  if (!cvs) return;
+  if (!cvs) return null;
   document.getElementById("cvSelect").innerHTML = cvs
     .map((cv) => `<option value="${cv.id}" ${cv.isMaster ? "selected" : ""}>${escapeHtml(cv.label)}${cv.isMaster ? " (master)" : ""}</option>`)
     .join("");
+  return cvs;
 }
 
 document.getElementById("generateBtn").onclick = async () => {
@@ -108,5 +109,4 @@ async function loadTemplates() {
   });
 }
 
-loadCvs();
-loadTemplates();
+loadCvs().then((hasCvs) => hasCvs && loadTemplates());

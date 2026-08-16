@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS applications (
   stage_entered_at TEXT NOT NULL,
   applied_at       TEXT,
   comp_estimate    TEXT NOT NULL DEFAULT '',
+  -- Added after the `applications` table already existed on some deployed
+  -- databases: CREATE TABLE IF NOT EXISTS is a no-op there, so an
+  -- already-existing `applications` table needs a one-time
+  -- `ALTER TABLE applications ADD COLUMN match_score INTEGER;` run before
+  -- db:init/db:init:local picks up the rest of this schema. See README.md's
+  -- Deploy section.
   match_score      INTEGER,
   notes            TEXT NOT NULL DEFAULT '',
   created_at       TEXT NOT NULL,
