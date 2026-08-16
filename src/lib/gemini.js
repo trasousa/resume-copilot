@@ -219,11 +219,14 @@ export function runChatStream({ env, stable, volatile, messages, maxTokens = 800
           send("error", { error: "Gemini hit the output limit before finishing this reply." });
         }
 
+        const usage = usageOf(lastUsage);
         // Persist before signalling done, so a client that reloads on `done`
-        // always finds the turn already saved.
-        if (onDone) await onDone(reply);
+        // always finds the turn already saved. Also carries `usage` so
+        // lib/llm.js's wrapper can record it against the daily token cap
+        // without needing to intercept the SSE stream itself.
+        if (onDone) await onDone(reply, usage);
 
-        send("done", { reply, usage: usageOf(lastUsage) });
+        send("done", { reply, usage });
       } catch (err) {
         send("error", { error: err?.message || "Chat failed." });
       } finally {

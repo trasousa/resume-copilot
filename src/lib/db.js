@@ -313,3 +313,23 @@ export async function saveProfile(db, p) {
     .run();
   return getProfile(db);
 }
+
+// --- Token usage (daily cap) ------------------------------------------------
+
+export async function getTokenUsage(db, day) {
+  const row = await db
+    .prepare("SELECT tokens FROM token_usage WHERE day = ?")
+    .bind(day)
+    .first();
+  return row?.tokens ?? 0;
+}
+
+export async function addTokenUsage(db, day, tokens) {
+  await db
+    .prepare(
+      `INSERT INTO token_usage (day, tokens) VALUES (?, ?)
+       ON CONFLICT(day) DO UPDATE SET tokens = tokens + excluded.tokens`
+    )
+    .bind(day, tokens)
+    .run();
+}

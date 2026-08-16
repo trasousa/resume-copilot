@@ -43,6 +43,19 @@ function cachedSystem(stable, volatile) {
   return blocks;
 }
 
+/** Normalizes to the same {input, output, cacheRead, cacheWrite} shape
+ * lib/gemini.js and lib/workersai.js already return -- runChatStream below
+ * already did this inline; runTask/runWebSearchTask didn't, which was a
+ * violation of the "exact same three-function contract" this file claims. */
+function usageOf(u) {
+  return {
+    input: u?.input_tokens ?? 0,
+    output: u?.output_tokens ?? 0,
+    cacheRead: u?.cache_read_input_tokens ?? 0,
+    cacheWrite: u?.cache_creation_input_tokens ?? 0,
+  };
+}
+
 function textOf(content) {
   return content
     .filter((b) => b.type === "text")
@@ -86,7 +99,7 @@ export async function runTask({
   });
 
   assertComplete(message);
-  return { text: textOf(message.content), usage: message.usage };
+  return { text: textOf(message.content), usage: usageOf(message.usage) };
 }
 
 /**
@@ -134,19 +147,14 @@ export function runChatStream({
         }
 
         const reply = textOf(message.content);
+        const usage = usageOf(message.usage);
         // Persist before signalling done, so a client that reloads on `done`
-        // always finds the turn already saved.
-        if (onDone) await onDone(reply);
+        // always finds the turn already saved. Also carries `usage` so
+        // lib/llm.js's wrapper can record it against the daily token cap
+        // without needing to intercept the SSE stream itself.
+        if (onDone) await onDone(reply, usage);
 
-        send("done", {
-          reply,
-          usage: {
-            cacheRead: message.usage?.cache_read_input_tokens ?? 0,
-            cacheWrite: message.usage?.cache_creation_input_tokens ?? 0,
-            input: message.usage?.input_tokens ?? 0,
-            output: message.usage?.output_tokens ?? 0,
-          },
-        });
+        send("done", { reply, usage });
       } catch (err) {
         send("error", { error: err?.message || "Chat failed." });
       } finally {
@@ -210,5 +218,5 @@ export async function runWebSearchTask({
     }
   }
 
-  return { text: textOf(message.content), sources, usage: message.usage };
+  return { text: textOf(message.content), sources, usage: usageOf(message.usage) };
 }

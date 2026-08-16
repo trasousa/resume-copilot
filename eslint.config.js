@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import babelParser from "@babel/eslint-parser";
 
 // Minimal, correctness-focused rules -- catches the things a CI check
 // should catch (unused vars, undefined refs, obvious footguns), not a
@@ -6,9 +7,9 @@ import js from "@eslint/js";
 export default [
   js.configs.recommended,
   {
-    files: ["src/**/*.js", "public/js/**/*.js"],
+    files: ["src/**/*.js", "public/js/**/*.js", "tail-worker/**/*.js"],
     languageOptions: {
-      ecmaVersion: 2023,
+      ecmaVersion: "latest",
       sourceType: "module",
       globals: {
         console: "readonly",
@@ -25,6 +26,24 @@ export default [
     },
     rules: {
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+    },
+  },
+  {
+    // espree (ESLint's default parser) has no decorator support at any
+    // ecmaVersion -- @callable() (used by src/agents/*) needs a parser
+    // that does. Scoped narrowly to just this directory rather than
+    // switching the whole project's parser.
+    files: ["src/agents/**/*.js"],
+    languageOptions: {
+      parser: babelParser,
+      parserOptions: {
+        requireConfigFile: false,
+        babelOptions: {
+          configFile: false,
+          babelrc: false,
+          parserOpts: { plugins: ["decorators-legacy"] },
+        },
+      },
     },
   },
   {

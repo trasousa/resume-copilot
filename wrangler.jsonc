@@ -10,6 +10,15 @@
 
   "observability": { "enabled": true },
 
+  // Forwards agents:* diagnostics-channel events (RPC calls, state changes,
+  // lifecycle) to the Tail Worker in tail-worker/ (already built and
+  // deployed as its own Worker -- see package.json's deploy:tail script).
+  // Commented out because Tail Workers require the Workers Paid plan
+  // ($5/mo minimum) -- Cloudflare confirmed this is a hard plan gate, not a
+  // bug or a manual step we're missing. Uncomment this one line to turn
+  // production observability back on once/if the account upgrades.
+  // "tail_consumers": [{ "service": "resume-copilot-tail" }],
+
   // Static frontend. Served by the same Worker as the API, so there is no
   // second deploy and no cross-origin config.
   "assets": {
@@ -44,6 +53,23 @@
     }
   ],
 
+  // Per-user agent state (Durable Object, SQLite-backed). One instance per
+  // authenticated user, addressed by email -- see src/lib/auth.js
+  // (resolveIdentity) and src/index.js for how the instance name is
+  // derived server-side, never from a client-supplied URL.
+  "durable_objects": {
+    "bindings": [{ "name": "RESUME_AGENT", "class_name": "ResumeAgent" }]
+  },
+  // Never edit an existing migration entry -- add a new tag for future
+  // agent classes or storage changes.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ResumeAgent"] }],
+
+  // Workers AI -- see src/lib/workersai.js and
+  // docs/superpowers/specs/2026-08-16-resume-agent-core-design.md for why
+  // (glm-4.7-flash, replacing Anthropic/Gemini as the default provider).
+  // Authenticates via this binding alone -- no API key/secret needed.
+  "ai": { "binding": "AI" },
+
   // CF_ACCESS_TEAM_DOMAIN / CF_ACCESS_AUD are not secrets -- they only
   // identify which Access application's JWTs this Worker accepts, not a
   // bearer credential. Replace the two placeholders once you've set up the
@@ -52,9 +78,16 @@
   // *.workers.dev). Until they're real, every request fails closed with a
   // 401, which is the correct default, not a bug.
   "vars": {
-    // "anthropic" (default) or "gemini" -- see src/lib/llm.js. Whichever is
-    // active, only that provider's API key needs to be set as a secret.
-    "LLM_PROVIDER": "anthropic",
+    // "workersai" (default, cheapest, no secret needed), "anthropic", or
+    // "gemini" -- see src/lib/llm.js. Whichever is active, only that
+    // provider's API key (if it has one) needs to be set as a secret.
+    //
+    // Known gap: workersai has no live web search, so Job Search will error
+    // with a clear message telling you to switch LLM_PROVIDER to
+    // "anthropic" or "gemini" until Browser Rendering-based search lands
+    // (see the design spec's sub-project 5) -- see src/lib/workersai.js.
+    "LLM_PROVIDER": "workersai",
+    "WORKERS_AI_MODEL": "@cf/zai-org/glm-4.7-flash",
     "ANTHROPIC_MODEL": "claude-sonnet-5",
     "GEMINI_MODEL": "gemini-3.5-flash-lite",
     "CF_ACCESS_TEAM_DOMAIN": "trasousa.cloudflareaccess.com",

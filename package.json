@@ -14,6 +14,7 @@
     "dev": "wrangler dev",
     "predeploy": "npm run build:skills",
     "deploy": "wrangler deploy",
+    "deploy:tail": "cd tail-worker && wrangler deploy",
     "db:create": "wrangler d1 create resume-copilot",
     "db:init": "wrangler d1 execute resume-copilot --remote --file=./schema.sql",
     "db:init:local": "wrangler d1 execute resume-copilot --local --file=./schema.sql",
@@ -24,12 +25,14 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
+    "agents": "^0.20.1",
     "docx": "^9.1.0",
     "hono": "^4.13.2",
     "jose": "^6.2.8",
     "mammoth": "^1.8.0"
   },
   "devDependencies": {
+    "@babel/eslint-parser": "^8.0.1",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.8.1",
     "wrangler": "^4.123.0"
