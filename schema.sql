@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS applications (
   stage_entered_at TEXT NOT NULL,
   applied_at       TEXT,
   comp_estimate    TEXT NOT NULL DEFAULT '',
+  match_score      INTEGER,
   notes            TEXT NOT NULL DEFAULT '',
   created_at       TEXT NOT NULL,
   updated_at       TEXT NOT NULL
@@ -46,6 +47,34 @@ CREATE TABLE IF NOT EXISTS documents (
   type           TEXT NOT NULL,
   content        TEXT NOT NULL,
   created_at     TEXT NOT NULL
+);
+
+-- Auto-logged timeline entries (created, stage changes, tailoring runs,
+-- document generation) plus user-added reminders -- all one append-only
+-- table so the Application Detail view's Activity feed is a single ordered
+-- query instead of a union across several sources.
+CREATE TABLE IF NOT EXISTS activity_events (
+  id             TEXT PRIMARY KEY,
+  application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  type           TEXT NOT NULL, -- 'created' | 'stage_change' | 'tailored' | 'document' | 'reminder'
+  title          TEXT NOT NULL,
+  detail         TEXT NOT NULL DEFAULT '',
+  occurred_at    TEXT NOT NULL, -- reminders are future-dated; everything else = created_at
+  created_at     TEXT NOT NULL
+);
+
+-- Reusable cover-letter/cold-email drafts saved from the Outreach Studio,
+-- independent of any single application (unlike `documents`, whose
+-- application_id is NOT NULL).
+CREATE TABLE IF NOT EXISTS templates (
+  id                  TEXT PRIMARY KEY,
+  kind                TEXT NOT NULL, -- 'coverLetter' | 'coldEmail'
+  label               TEXT NOT NULL,
+  tone                TEXT NOT NULL DEFAULT 'professional',
+  target_role_company TEXT NOT NULL DEFAULT '',
+  content             TEXT NOT NULL,
+  created_at          TEXT NOT NULL,
+  last_used_at        TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS chat_messages (
@@ -83,3 +112,5 @@ CREATE INDEX IF NOT EXISTS idx_cvs_created      ON cvs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_apps_updated     ON applications(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_docs_application ON documents(application_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_chat_cv          ON chat_messages(cv_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_activity_app  ON activity_events(application_id, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_templates_used ON templates(last_used_at DESC);
