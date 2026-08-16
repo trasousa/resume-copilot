@@ -7,7 +7,6 @@ document.getElementById("saveTemplateBtn").innerHTML = icon("folder");
 const main = document.querySelector("main");
 let kind = "coverLetter";
 let tone = "professional";
-let draftContent = "";
 
 document.querySelectorAll("#kindTabs .chip").forEach((btn) => {
   btn.onclick = () => {
@@ -44,7 +43,6 @@ document.getElementById("generateBtn").onclick = async () => {
       method: "POST",
       body: { type: kind, targetRoleCompany, tone, cvId: document.getElementById("cvSelect").value },
     });
-    draftContent = content;
     document.getElementById("editorTitle").textContent = `${targetRoleCompany} – ${kind === "coverLetter" ? "Cover Letter" : "Cold Email"}`;
     document.getElementById("editorBody").innerText = content;
     document.getElementById("savedIndicator").textContent = "";
