@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build:skills": "node scripts/build-skills.mjs",
+    "lint": "eslint .",
     "predev": "npm run build:skills",
     "dev": "wrangler dev",
     "predeploy": "npm run build:skills",
@@ -16,6 +17,7 @@
     "db:create": "wrangler d1 create resume-copilot",
     "db:init": "wrangler d1 execute resume-copilot --remote --file=./schema.sql",
     "db:init:local": "wrangler d1 execute resume-copilot --local --file=./schema.sql",
+    "db:reset:local": "wrangler d1 execute resume-copilot --local --command=\"DELETE FROM chat_messages; DELETE FROM documents; DELETE FROM applications; DELETE FROM cvs; DELETE FROM profile;\"",
     "r2:create": "wrangler r2 bucket create resume-copilot-originals",
     "prebuild": "npm run build:skills",
     "build": "wrangler deploy --dry-run --outdir dist"
@@ -28,6 +30,8 @@
     "mammoth": "^1.8.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.1",
     "wrangler": "^4.123.0"
   }
 }

@@ -38,6 +38,15 @@ npm run dev          # http://localhost:8787
 
 `npm run build:skills` runs automatically before `dev` and `deploy`.
 
+## Development workflow
+
+`main` is production and protected -- no direct pushes, PRs only, CI must pass. `dev` is the working branch; cut `feature/*` branches off it for anything nontrivial and PR back into `dev`. Periodically PR `dev` → `main` to release.
+
+CI (`.github/workflows/ci.yml`) runs on every PR and push to `dev`/`main`:
+- **Secret scan** -- `gitleaks detect` over the full repo history. A value that's flagged but isn't actually a secret (like the Access AUD tag above, which is an identifier, not a credential) gets a `// gitleaks:allow` comment on that line rather than a broad exemption.
+- **Lint** -- `npm run lint` (`eslint.config.js`), correctness rules only (unused vars, undefined refs), not a style enforcer.
+- **Build** -- `npm run build:skills` + `npm run build` (`wrangler deploy --dry-run`). No `CLOUDFLARE_API_TOKEN` needed; dry-run bundles and validates config without calling the Cloudflare API.
+
 ## What's here
 
 - **Worker** (`src/`): [Hono](https://hono.dev) routes calling an LLM with the relevant skill's `SKILL.md` injected as the system prompt. Routes import from `src/lib/llm.js`, which dispatches to `src/lib/anthropic.js` (Claude, default) or `src/lib/gemini.js` (Gemini) based on `LLM_PROVIDER` -- see "LLM provider" below.
@@ -96,35 +105,23 @@ That's the whole deploy -- one Worker, static assets and API together, no separa
 
 ## Custom domain
 
-Cloudflare Workers custom domains require the domain's DNS to be on Cloudflare -- a Worker executes at Cloudflare's edge, so traffic for the hostname has to be routed through Cloudflare to reach it. There's no way to point a plain CNAME at a `*.workers.dev` URL from a domain hosted elsewhere and have it work.
+**Required for sign-in** -- see "Sign-in" below: Cloudflare Access can only attach to a real Cloudflare zone, never `*.workers.dev`. This app is configured to deploy to **`resume.btopencloud.com`** (`wrangler.jsonc`'s `routes` entry).
 
-**If your domain is already on Cloudflare** (you manage its DNS in the Cloudflare dashboard): skip to step 2.
+**If `btopencloud.com` is already on Cloudflare** (you manage its DNS in the Cloudflare dashboard): skip to step 2.
 
 **If it isn't:**
 
-1. **Add the site to Cloudflare** -- dashboard → **Add a site** → enter your domain → pick the Free plan (this app doesn't need anything paid). Cloudflare scans your existing DNS records and shows you two nameservers. Update your domain's nameservers to those two at your registrar (wherever you bought the domain). This can take anywhere from a few minutes to 24 hours to propagate; Cloudflare emails you once it's active.
+1. **Add the site to Cloudflare** -- dashboard → **Add a site** → enter `btopencloud.com` → pick the Free plan (this app doesn't need anything paid). Cloudflare scans your existing DNS records and shows you two nameservers. Update the domain's nameservers to those two at your registrar (wherever you bought it). This can take anywhere from a few minutes to 24 hours to propagate; Cloudflare emails you once it's active.
 
-   This moves DNS for the **whole domain**, not just a subdomain -- if you have email or other services on it, make sure their DNS records got imported correctly before switching nameservers (Cloudflare shows you the imported records during setup; check them).
+   This moves DNS for the **whole domain**, not just the `resume` subdomain -- if you have email or other services on it, make sure their DNS records got imported correctly before switching nameservers (Cloudflare shows you the imported records during setup; check them).
 
-2. **Deploy the Worker** (`npm run deploy`) if you haven't already.
-
-3. **Attach the domain** -- dashboard → **Workers & Pages** → `resume-copilot` → **Settings** → **Domains & Routes** → **Add** → enter e.g. `resume.yourdomain.com`. Cloudflare provisions the SSL certificate automatically; this usually takes under a minute.
-
-   A subdomain (`resume.yourdomain.com`) is the easy path and won't conflict with anything else on the apex domain. Using the bare apex (`yourdomain.com`) works too if that's what you want.
-
-4. **Make it reproducible** -- once you know the hostname, add it to `wrangler.jsonc` so it's re-applied on every future deploy instead of being a manual dashboard step:
-
-   ```jsonc
-   "routes": [
-     { "pattern": "resume.yourdomain.com", "custom_domain": true }
-   ]
-   ```
+2. **Deploy the Worker** (`npm run deploy`) -- picks up the `routes` entry already in `wrangler.jsonc` and attaches `resume.btopencloud.com` automatically, provisioning the SSL certificate too. No manual dashboard step needed once the zone is active.
 
 The `*.workers.dev` URL keeps existing alongside the custom domain, but see "Sign-in" below -- once Access is set up, it can't protect that URL, so treat it as unusable for real traffic rather than an alternate way in.
 
 ## Sign-in
 
-**Requires the custom domain above.** Cloudflare Access protects a hostname by intercepting traffic to it at Cloudflare's edge, before it ever reaches the Worker -- so it needs a real Cloudflare zone to attach to. It cannot front `*.workers.dev`, which is a domain Cloudflare shares across every account, not one you control. Set up the custom domain first.
+Cloudflare Access protects a hostname by intercepting traffic to it at Cloudflare's edge, before it ever reaches the Worker -- so it needs the real Cloudflare zone from "Custom domain" above to attach to. It cannot front `*.workers.dev`, which is a domain Cloudflare shares across every account, not one you control.
 
 Single-tenant, same as this app has been throughout: whoever your Access policy lets through shares one CV store, tracker, and everything else. There's no per-user data. If you want that, it's a bigger change than this app makes -- ask if you want it built.
 
@@ -132,11 +129,11 @@ Single-tenant, same as this app has been throughout: whoever your Access policy 
 
 1. If this is the first time you're using Zero Trust on the account, it'll prompt you to pick a team name (e.g. `yourteam`) -- that becomes `yourteam.cloudflareaccess.com`. Free for up to 50 users, which this app will never come close to.
 2. **Access → Applications → Add an application → Self-hosted.**
-3. **Application domain**: your Worker's custom domain (e.g. `resume.yourdomain.com`) -- not the `*.workers.dev` URL, which Access can't protect (see above).
+3. **Application domain**: `resume.btopencloud.com` -- not the `*.workers.dev` URL, which Access can't protect (see above).
 4. **Identity providers**: pick one under Settings → Authentication if you haven't already.
    - **Google** -- gives users a "Sign in with Google" screen; needs a Google Cloud OAuth client, but registered directly with Cloudflare -- this app has no OAuth code of its own.
    - **One-time PIN** -- Cloudflare emails a 6-digit code, no external identity provider at all. The simplest option if the goal is keeping everything inside Cloudflare.
-5. **Policy**: Allow, Include → Emails → your email(s). This is the allow-list -- it replaces what `ALLOWED_EMAILS` used to do at the app level, and it's the actual authorization check: you cannot end up with a validly-signed Access JWT for this app unless this policy let you through.
+5. **Policy**: Allow, Include → Emails → your email(s). This is the allow-list -- it's the actual authorization check: you cannot end up with a validly-signed Access JWT for this app unless this policy let you through.
 6. On the application's **Overview** page, copy the **Application Audience (AUD) tag**.
 
 **Configure the Worker** -- edit the two placeholders in `wrangler.jsonc` under `vars`:
@@ -148,11 +145,13 @@ Single-tenant, same as this app has been throughout: whoever your Access policy 
 
 Neither is a secret -- they only identify which Access application's JWTs the Worker accepts, not a bearer credential, so they live in version control like the D1 database id above. Redeploy (`npm run deploy`) after editing them.
 
-**That's the whole setup -- no `wrangler secret put` beyond `ANTHROPIC_API_KEY`.** Visit the custom domain; Access intercepts you, runs whichever identity provider you picked, and only then forwards the request to the Worker with a signed JWT proving who you are. The Worker verifies that JWT itself (`src/lib/auth.js`) rather than just trusting that traffic reaching it must be legitimate -- which is what keeps the `*.workers.dev` URL locked out automatically: Access never fronts it, so no request there can ever carry a validly-signed JWT, and the Worker rejects everything without one.
+**That's the whole setup -- no `wrangler secret put` beyond `ANTHROPIC_API_KEY`.** Visit `resume.btopencloud.com`; Access intercepts you, runs whichever identity provider you picked, and only then forwards the request to the Worker with a signed JWT proving who you are. The Worker verifies that JWT itself (`src/lib/auth.js`) rather than just trusting that traffic reaching it must be legitimate -- which is what keeps the `*.workers.dev` URL locked out automatically: Access never fronts it, so no request there can ever carry a validly-signed JWT, and the Worker rejects everything without one.
 
 Until both `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are set to real values, every request fails closed with a 401. That's the correct default while you're mid-setup, not a bug to work around.
 
 To sign out, the nav's **Log out** button sends the browser to `/cdn-cgi/access/logout` -- a path Access reserves on every hostname it protects and intercepts itself; this app has no session of its own to clear.
+
+**None of this can be tested locally.** Access intercepts traffic at Cloudflare's edge network, which `wrangler dev` traffic never reaches regardless of domain setup -- `SKIP_AUTH=1` in `.dev.vars` is the only local option, and it bypasses auth entirely rather than simulating it. To actually exercise the Access flow, deploy and hit `resume.btopencloud.com`.
 
 ## Notes on what's intentionally simple
 
