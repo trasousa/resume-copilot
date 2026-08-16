@@ -20,6 +20,7 @@ import jobsearchRouter from "./routes/jobsearch.js";
 import jobpostRouter from "./routes/jobpost.js";
 import tailorRouter from "./routes/tailor.js";
 import profileRouter from "./routes/profile.js";
+import outreachRouter from "./routes/outreach.js";
 
 const app = new Hono();
 
@@ -50,6 +51,7 @@ app.route("/api/jobsearch", jobsearchRouter);
 app.route("/api/jobpost", jobpostRouter);
 app.route("/api/tailor", tailorRouter);
 app.route("/api/profile", profileRouter);
+app.route("/api/outreach", outreachRouter);
 
 app.get("/api/skills", (c) => c.json(listSkills()));
 
