@@ -2,5 +2,8 @@
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "resume-copilot-tail",
   "main": "index.js",
-  "compatibility_date": "2026-08-01"
+  "compatibility_date": "2026-08-01",
+  // Explicit, not relying on account defaults -- a Tail Worker whose
+  // console.log()s aren't retained in Workers Logs is a silent no-op.
+  "observability": { "enabled": true }
 }

@@ -65,9 +65,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # Deploy order matters: the main Worker's tail_consumers references
-      # resume-copilot-tail by name (see wrangler.jsonc) -- deploying it
-      # first means the reference is never briefly dangling.
+      # tail_consumers is currently commented out in wrangler.jsonc (Tail
+      # Workers need the Workers Paid plan) -- this step is a harmless no-op
+      # until it's re-enabled, kept here so deploy order is already correct
+      # (Tail Worker before main Worker, so the reference is never briefly
+      # dangling) whenever that happens.
       - name: Deploy Tail Worker
         run: npm run deploy:tail
         env:

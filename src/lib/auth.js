@@ -76,13 +76,13 @@ async function verifyAccessJwt(request, env) {
       issuer: `https://${CF_ACCESS_TEAM_DOMAIN}`,
       audience: CF_ACCESS_AUD,
     });
-    // A verified JWT with no email claim is not usable identity -- Task 3's
-    // Agent routing keys the per-user Durable Object instance directly off
-    // this value, so a falsy email must never come back as a "successful"
-    // identity: every such caller would silently collapse onto one shared
-    // instance addressed by "".
-    if (!payload.email) return null;
-    return { email: String(payload.email).toLowerCase() };
+    // A verified JWT with no email or sub claim is not usable identity --
+    // the Agent routing keys the per-user Durable Object instance off `sub`
+    // (stable across email changes -- see Cloudflare's Access JWT docs),
+    // so a falsy value must never come back as a "successful" identity:
+    // every such caller would silently collapse onto one shared instance.
+    if (!payload.email || !payload.sub) return null;
+    return { email: String(payload.email).toLowerCase(), sub: String(payload.sub) };
   } catch {
     // Expired, wrong audience, bad signature, wrong issuer -- all the same
     // outcome from the caller's side: not authenticated.
@@ -93,18 +93,27 @@ async function verifyAccessJwt(request, env) {
 /**
  * Resolves the authenticated identity from a raw Request -- used both by
  * the Hono middleware below and by the Agent routing in src/index.js, which
- * runs before Hono and has no Hono context to read a header from.
+ * runs before Hono and has no Hono context to read a header from. Returns
+ * { email, sub } -- `sub` is the stable per-user identifier Agent routing
+ * keys instances on; `email` is a display attribute that can drift.
  *
  * In SKIP_AUTH mode (wrangler dev only -- Access never reaches localhost),
- * identity comes from an X-Dev-User header instead of a real JWT, defaulting
- * to "dev@local" if absent. This is what lets the per-user Agent routing be
- * exercised locally with multiple distinct identities (send different
- * X-Dev-User values) without needing a real Access session.
+ * identity comes from an X-Dev-User header instead of a real JWT (the value
+ * doubles as both email and sub locally -- there's no real Access session
+ * to source a separate stable id from), defaulting to "dev@local" if
+ * absent. This is what lets the per-user Agent routing be exercised locally
+ * with multiple distinct identities (send different X-Dev-User values)
+ * without needing a real Access session.
+ *
+ * Load-bearing invariant: SKIP_AUTH's ability to select *any* identity by
+ * request header is strictly more powerful than merely bypassing auth --
+ * it must never be reachable outside `.dev.vars` (gitignored, wrangler dev
+ * only). It must never appear in wrangler.jsonc's committed `vars` block.
  */
 export async function resolveIdentity(request, env) {
   if (env.SKIP_AUTH === "1") {
-    const devUser = request.headers.get("X-Dev-User") || "dev@local";
-    return { email: devUser.toLowerCase() };
+    const devUser = (request.headers.get("X-Dev-User") || "dev@local").toLowerCase();
+    return { email: devUser, sub: devUser };
   }
   return verifyAccessJwt(request, env);
 }

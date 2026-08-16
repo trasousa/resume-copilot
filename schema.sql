@@ -71,6 +71,14 @@ CREATE TABLE IF NOT EXISTS profile (
   updated_at TEXT
 );
 
+-- Running total of LLM tokens (input + output, all providers alike) spent
+-- per UTC day, enforced in src/lib/llm.js as a blunt daily cost/runaway-use
+-- guard -- one row per day, upserted after every completed call.
+CREATE TABLE IF NOT EXISTS token_usage (
+  day    TEXT PRIMARY KEY, -- YYYY-MM-DD, UTC
+  tokens INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE INDEX IF NOT EXISTS idx_cvs_created      ON cvs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_apps_updated     ON applications(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_docs_application ON documents(application_id, created_at);

@@ -8,10 +8,10 @@
 import { Hono } from "hono";
 
 import { listSkills } from "./lib/skills.js";
-import { requireAuth, currentUser } from "./lib/auth.js";
+import { requireAuth, currentUser, resolveIdentity } from "./lib/auth.js";
 import { ResumeAgent } from "./agents/resume-agent.js";
 import { getAgentByName } from "agents";
-import { resolveIdentity } from "./lib/auth.js";
+import { subscribe } from "agents/observability";
 
 import cvsRouter from "./routes/cvs.js";
 import applicationsRouter from "./routes/applications.js";
@@ -55,15 +55,25 @@ app.get("/api/skills", (c) => c.json(listSkills()));
 
 app.get("/api/health", (c) => {
   const provider = (c.env.LLM_PROVIDER || "anthropic").toLowerCase();
-  const isGemini = provider === "gemini";
+  // Workers AI authenticates via the native binding, tied to the Cloudflare
+  // account -- there's no API key/secret to check for it at all.
+  const keyByProvider = {
+    gemini: { apiKeyName: "GOOGLE_API_KEY", hasApiKey: !!c.env.GOOGLE_API_KEY },
+    workersai: { apiKeyName: null, hasApiKey: true },
+    anthropic: { apiKeyName: "ANTHROPIC_API_KEY", hasApiKey: !!c.env.ANTHROPIC_API_KEY },
+  };
+  const modelByProvider = {
+    gemini: c.env.GEMINI_MODEL || "gemini-2.5-flash",
+    workersai: c.env.WORKERS_AI_MODEL || "@cf/zai-org/glm-4.7-flash",
+    anthropic: c.env.ANTHROPIC_MODEL || "claude-opus-5",
+  };
+  const { apiKeyName, hasApiKey } = keyByProvider[provider] || keyByProvider.anthropic;
   return c.json({
     ok: true,
     provider,
-    hasApiKey: isGemini ? !!c.env.GOOGLE_API_KEY : !!c.env.ANTHROPIC_API_KEY,
-    apiKeyName: isGemini ? "GOOGLE_API_KEY" : "ANTHROPIC_API_KEY",
-    model: isGemini
-      ? c.env.GEMINI_MODEL || "gemini-2.5-flash"
-      : c.env.ANTHROPIC_MODEL || "claude-opus-5",
+    hasApiKey,
+    apiKeyName,
+    model: modelByProvider[provider] || modelByProvider.anthropic,
     authRequired: c.env.SKIP_AUTH !== "1",
   });
 });
@@ -84,6 +94,19 @@ app.onError((err, c) => {
 
 export { ResumeAgent };
 
+// Structured agent events (RPC calls, state changes, lifecycle) logged via
+// console -- captured by Workers Logs (already enabled in wrangler.jsonc,
+// included on the Free plan) with zero extra infrastructure. Independent of
+// Tail Workers, which need the Workers Paid plan -- see
+// docs/superpowers/specs/2026-08-16-resume-agent-core-design.md.
+// subscribe() takes the bare channel key ("lifecycle", not "agents:lifecycle")
+// and prepends "agents:" itself internally -- passing the prefixed form here
+// previously subscribed to the never-published "agents:agents:lifecycle" and
+// silently produced zero output.
+for (const channel of ["lifecycle", "rpc", "state"]) {
+  subscribe(channel, (event) => console.log(JSON.stringify({ channel, ...event })));
+}
+
 // Requests under /agents/resume-agent are NOT handled by Hono -- the agent
 // instance is always derived from verified identity, server-side, never
 // from the URL. (The Agents SDK's default routeAgentRequest() takes the
@@ -91,14 +114,28 @@ export { ResumeAgent };
 // another user's agent by typing their email into the path -- see
 // docs/superpowers/specs/2026-08-16-resume-agent-core-design.md.)
 async function handleAgentRequest(request, env) {
-  const user = await resolveIdentity(request, env);
-  if (!user) return Response.json({ error: "Not authenticated." }, { status: 401 });
+  try {
+    const user = await resolveIdentity(request, env);
+    if (!user) return Response.json({ error: "Not authenticated." }, { status: 401 });
 
-  const agent = await getAgentByName(env.RESUME_AGENT, user.email);
-  // First access to a fresh instance has no state yet -- stamp identity
-  // once. Cheap no-op on every subsequent call (setEmail no-ops if already set).
-  await agent.setEmail(user.email);
-  return agent.fetch(request);
+    // Keyed by `sub`, not `email`: `sub` is stable across an email change at
+    // the identity provider, `email` is not -- see src/lib/auth.js and the
+    // Access JWT docs. Keying by email would silently orphan a user's
+    // agent (and, once sub-project 2 lands, their CVs/applications) the
+    // moment their email changes.
+    const agent = await getAgentByName(env.RESUME_AGENT, user.sub);
+    // First access to a fresh instance has no state yet -- stamp identity
+    // once. Cheap no-op on every subsequent call (setIdentity no-ops if
+    // already set).
+    await agent.setIdentity(user.email, user.sub);
+    return agent.fetch(request);
+  } catch (err) {
+    console.error(err);
+    return Response.json(
+      { error: err.message || "Internal server error" },
+      { status: err.status || 500 }
+    );
+  }
 }
 
 export default {
