@@ -44,6 +44,23 @@
     }
   ],
 
+  // Per-user agent state (Durable Object, SQLite-backed). One instance per
+  // authenticated user, addressed by email -- see src/lib/auth.js
+  // (resolveIdentity) and src/index.js for how the instance name is
+  // derived server-side, never from a client-supplied URL.
+  "durable_objects": {
+    "bindings": [{ "name": "RESUME_AGENT", "class_name": "ResumeAgent" }]
+  },
+  // Never edit an existing migration entry -- add a new tag for future
+  // agent classes or storage changes.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ResumeAgent"] }],
+
+  // Workers AI -- see docs/superpowers/specs/2026-08-16-resume-agent-core-design.md
+  // for why (glm-4.7-flash via AI Gateway, replacing Anthropic/Gemini). Not
+  // used by this skeleton yet -- wired here so later sub-projects don't need
+  // another wrangler.jsonc change.
+  "ai": { "binding": "AI" },
+
   // CF_ACCESS_TEAM_DOMAIN / CF_ACCESS_AUD are not secrets -- they only
   // identify which Access application's JWTs this Worker accepts, not a
   // bearer credential. Replace the two placeholders once you've set up the
