@@ -415,3 +415,11 @@ nav.tabs a.active { background: var(--advocate-surface-container); color: var(--
 }
 .icon-btn:hover { background: var(--advocate-surface-container-low); }
 .icon-btn:disabled { opacity: 0.5; cursor: default; }
+
+.dropzone {
+  border: 2px dashed var(--advocate-outline-variant); border-radius: var(--radius);
+  padding: 40px 24px; text-align: center;
+}
+.dropzone .icon { width: 48px; height: 48px; margin: 0 auto 12px; color: var(--advocate-primary); background: var(--advocate-surface-container-low); border-radius: 50%; padding: 12px; box-sizing: content-box; }
+.dropzone h2 { margin-bottom: 4px; }
+.dropzone .btn { margin-top: 14px; }
