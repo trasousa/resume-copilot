@@ -9,6 +9,9 @@ import { Hono } from "hono";
 
 import { listSkills } from "./lib/skills.js";
 import { requireAuth, currentUser } from "./lib/auth.js";
+import { ResumeAgent } from "./agents/resume-agent.js";
+import { getAgentByName } from "agents";
+import { resolveIdentity } from "./lib/auth.js";
 
 import cvsRouter from "./routes/cvs.js";
 import applicationsRouter from "./routes/applications.js";
@@ -79,4 +82,31 @@ app.onError((err, c) => {
   );
 });
 
-export default app;
+export { ResumeAgent };
+
+// Requests under /agents/resume-agent are NOT handled by Hono -- the agent
+// instance is always derived from verified identity, server-side, never
+// from the URL. (The Agents SDK's default routeAgentRequest() takes the
+// instance name from the URL, which would let an authenticated user reach
+// another user's agent by typing their email into the path -- see
+// docs/superpowers/specs/2026-08-16-resume-agent-core-design.md.)
+async function handleAgentRequest(request, env) {
+  const user = await resolveIdentity(request, env);
+  if (!user) return Response.json({ error: "Not authenticated." }, { status: 401 });
+
+  const agent = await getAgentByName(env.RESUME_AGENT, user.email);
+  // First access to a fresh instance has no state yet -- stamp identity
+  // once. Cheap no-op on every subsequent call (setEmail no-ops if already set).
+  await agent.setEmail(user.email);
+  return agent.fetch(request);
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    if (url.pathname === "/agents/resume-agent" || url.pathname.startsWith("/agents/resume-agent/")) {
+      return handleAgentRequest(request, env);
+    }
+    return app.fetch(request, env, ctx);
+  },
+};
