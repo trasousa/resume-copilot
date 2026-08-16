@@ -279,3 +279,37 @@ export async function addChatMessage(db, msg) {
     .bind(msg.id, msg.cvId, msg.role, msg.content, msg.createdAt)
     .run();
 }
+
+// --- Profile (single-row job-search preferences) ---------------------------
+
+const profileFromRow = (r) => ({
+  city: r?.city ?? "",
+  region: r?.region ?? "",
+  country: r?.country ?? "",
+  remote: !!r?.remote,
+  minComp: r?.min_comp ?? "",
+  notes: r?.notes ?? "",
+  updatedAt: r?.updated_at ?? null,
+});
+
+export async function getProfile(db) {
+  return profileFromRow(
+    await db.prepare("SELECT * FROM profile WHERE id = 'default'").first()
+  );
+}
+
+export async function saveProfile(db, p) {
+  const now = new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT INTO profile (id, city, region, country, remote, min_comp, notes, updated_at)
+       VALUES ('default', ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         city = excluded.city, region = excluded.region, country = excluded.country,
+         remote = excluded.remote, min_comp = excluded.min_comp, notes = excluded.notes,
+         updated_at = excluded.updated_at`
+    )
+    .bind(p.city || "", p.region || "", p.country || "", p.remote ? 1 : 0, p.minComp || "", p.notes || "", now)
+    .run();
+  return getProfile(db);
+}

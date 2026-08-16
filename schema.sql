@@ -56,6 +56,21 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   created_at TEXT NOT NULL
 );
 
+-- Single-row settings: id is always 'default'. Job-search preferences
+-- captured once (onboarding, or edited from the Job Search page) and
+-- reused to prefill every search instead of re-asking every time.
+-- updated_at being NULL is the "never saved, still onboarding" signal.
+CREATE TABLE IF NOT EXISTS profile (
+  id         TEXT PRIMARY KEY DEFAULT 'default',
+  city       TEXT NOT NULL DEFAULT '',
+  region     TEXT NOT NULL DEFAULT '',
+  country    TEXT NOT NULL DEFAULT '',
+  remote     INTEGER NOT NULL DEFAULT 0,
+  min_comp   TEXT NOT NULL DEFAULT '',
+  notes      TEXT NOT NULL DEFAULT '',
+  updated_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_cvs_created      ON cvs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_apps_updated     ON applications(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_docs_application ON documents(application_id, created_at);

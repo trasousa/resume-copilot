@@ -26,8 +26,14 @@
         <option value="careerChange">Career change</option>
       </select>
 
+      <label>Job posting link (optional)</label>
+      <div class="row">
+        <input type="text" id="jobPostLink" style="flex:1;" placeholder="https://..." />
+        <button type="button" class="btn secondary small" id="fetchJobPost">Fetch job post</button>
+      </div>
+      <span id="fetchStatus" class="muted"></span>
       <label>Job posting text</label>
-      <textarea id="jobPost" rows="8" placeholder="Paste the full job description here"></textarea>
+      <textarea id="jobPost" rows="8" placeholder="Paste the full job description here, or fetch it from the link above"></textarea>
 
       <div class="row" style="margin-top:12px;">
         <button class="btn" id="runBtn">Analyze &amp; Tailor</button>

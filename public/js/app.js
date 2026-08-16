@@ -22,6 +22,57 @@ export async function api(path, options = {}) {
   return res.json();
 }
 
+/** Fetch a job posting URL server-side and return its extracted text. */
+export async function fetchJobPostFromUrl(url) {
+  const { text } = await api("/jobpost/fetch", { method: "POST", body: { url } });
+  return text;
+}
+
+/**
+ * Wires a "Fetch" button that pulls a job-post link's text into a target
+ * textarea. Shared by the New Application dialog and the Tailor page so
+ * both get the same behavior without duplicating the fetch/error/spinner
+ * dance.
+ */
+export function wireJobPostFetch({ linkInput, fetchBtn, jobPostTextarea, statusEl }) {
+  fetchBtn.onclick = async () => {
+    const url = linkInput.value.trim();
+    if (!url) return alert("Paste a job posting link first.");
+    fetchBtn.disabled = true;
+    statusEl.innerHTML = `<span class="spinner"></span> fetching…`;
+    try {
+      jobPostTextarea.value = await fetchJobPostFromUrl(url);
+      statusEl.textContent = "";
+    } catch (err) {
+      statusEl.textContent = "";
+      showError(jobPostTextarea.closest("main") || document.body, err);
+    } finally {
+      fetchBtn.disabled = false;
+    }
+  };
+}
+
+/**
+ * Onboarding gate: fetches the CV list and, if it's empty, replaces
+ * `container`'s content with an empty state pointing at CV Store instead of
+ * a form that has nothing to act on. Returns the CV list on success, or
+ * `null` after rendering the empty state so callers can bail out early.
+ */
+export async function ensureCvsOrEmptyState(container, message) {
+  const cvs = await api("/cvs");
+  if (cvs.length) return cvs;
+  container.innerHTML = `
+    <div class="card empty-state">
+      <h2>Add your first CV to get started</h2>
+      <p class="muted">${escapeHtml(
+        message ||
+          "Upload a CV or paste its text in the CV Store. From there you can improve it and start tailoring it to job postings."
+      )}</p>
+      <a class="btn" href="cv-store.html">Go to CV Store</a>
+    </div>`;
+  return null;
+}
+
 export function escapeHtml(str) {
   return String(str ?? "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -109,5 +160,7 @@ export async function checkApiKey() {
         "(or add it to <code>.dev.vars</code> locally) for AI features to work.";
       document.querySelector("main")?.prepend(banner);
     }
-  } catch {}
+  } catch {
+    // Best-effort banner -- a failed health check shouldn't block the page.
+  }
 }

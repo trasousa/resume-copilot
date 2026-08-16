@@ -30,7 +30,7 @@
       "database_name": "resume-copilot",
       // Replace with the id printed by:
       //   npx wrangler d1 create resume-copilot
-      "database_id": "PLACEHOLDER_RUN_WRANGLER_D1_CREATE"
+      "database_id": "f620e648-f023-4174-ae81-1e748d802a0d"
     }
   ],
 
@@ -55,19 +55,22 @@
     // "anthropic" (default) or "gemini" -- see src/lib/llm.js. Whichever is
     // active, only that provider's API key needs to be set as a secret.
     "LLM_PROVIDER": "anthropic",
-    "ANTHROPIC_MODEL": "claude-opus-5",
-    "GEMINI_MODEL": "gemini-2.5-flash",
-    "CF_ACCESS_TEAM_DOMAIN": "PLACEHOLDER_YOUR_TEAM.cloudflareaccess.com",
-    "CF_ACCESS_AUD": "PLACEHOLDER_AUD_TAG_FROM_ACCESS_APP_OVERVIEW"
-  }
+    "ANTHROPIC_MODEL": "claude-sonnet-5",
+    "GEMINI_MODEL": "gemini-3.5-flash-lite",
+    "CF_ACCESS_TEAM_DOMAIN": "trasousa.cloudflareaccess.com",
+    "CF_ACCESS_AUD": "a55647e511b1d3a8932fb682a628af9901b8eccf2befb5f02aee35779d437c78" // gitleaks:allow -- not a bearer credential, see comment above
+  },
+
+  // Required, not cosmetic, now that Access is back: Access can only attach
+  // to a real Cloudflare zone, never *.workers.dev. Requires btopencloud.com's
+  // DNS to already be on Cloudflare; `wrangler deploy` provisions the custom
+  // domain + certificate automatically from this entry -- see README.md
+  // "Custom domain" and "Sign-in".
+  "routes": [{ "pattern": "resume.btopencloud.com", "custom_domain": true }]
 
   // Secrets are NOT set here -- they go in the encrypted store:
   //   npx wrangler secret put ANTHROPIC_API_KEY
   //   npx wrangler secret put GOOGLE_API_KEY   (only if LLM_PROVIDER is "gemini")
   // For local dev, put the same key(s) in .dev.vars (gitignored). Also set
   // SKIP_AUTH="1" there -- Access never runs in front of `wrangler dev`.
-  //
-  // To serve this on your own domain instead of *.workers.dev, add a routes
-  // entry once the domain is on Cloudflare -- see README.md "Custom domain".
-  //   "routes": [{ "pattern": "resume.yourdomain.com", "custom_domain": true }]
 }

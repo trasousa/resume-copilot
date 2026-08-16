@@ -12,6 +12,8 @@
     <h1>CV Store</h1>
     <p class="subtitle">Upload a CV, mark a master, and improve it interactively — no job post needed.</p>
 
+    <div id="onboardingBanner"></div>
+
     <div class="grid cols-2">
       <div class="card">
         <h2>Upload a CV</h2>
@@ -40,18 +42,15 @@
       <div id="cvList"></div>
     </div>
 
-    <div class="card" id="chatCard" style="display:none;">
-      <div class="row between">
-        <h2 id="chatTitle">Improve CV</h2>
-        <button class="btn secondary small" id="closeChatBtn">Close</button>
+    <div id="improveCard" style="display:none;">
+      <div class="row between" style="margin: 24px 0 10px;">
+        <div>
+          <h2 id="improveTitle" style="margin-bottom: 2px;">Improve CV</h2>
+          <p class="muted" style="margin: 0;">Edit the document directly, or ask the assistant on the right — say "just improve it" and it'll do its best. A proposed rewrite shows here for you to accept or discard.</p>
+        </div>
+        <button class="btn secondary small" id="closeImproveBtn">Close</button>
       </div>
-      <p class="muted">Interactive optimization — ask for anything, or say "just improve it" and I'll do my best. When I propose a full rewrite, you'll get an Accept button to save it as a new version.</p>
-      <div class="chat-log" id="chatLog"></div>
-      <div id="proposedWrap"></div>
-      <div class="row">
-        <input type="text" id="chatInput" placeholder="e.g. Make my bullets more quantified, or: just tighten the summary" />
-        <button class="btn" id="chatSend">Send</button>
-      </div>
+      <div id="cvDocMount"></div>
     </div>
   </main>
 

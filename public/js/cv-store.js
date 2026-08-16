@@ -1,10 +1,13 @@
 import { api, escapeHtml, renderNav, showError, timeAgo, checkApiKey } from "./app.js";
+import { mountCvDocument } from "./cv-doc.js";
 
 renderNav("cv-store.html");
 checkApiKey();
 
 const cvList = document.getElementById("cvList");
 const main = document.querySelector("main");
+
+const onboardingBanner = document.getElementById("onboardingBanner");
 
 async function loadCvs() {
   let cvs = [];
@@ -13,6 +16,9 @@ async function loadCvs() {
   } catch (err) {
     showError(main, err);
   }
+
+  renderOnboarding(cvs);
+
   if (!cvs.length) {
     cvList.innerHTML = `<div class="empty">No CVs yet — upload one above.</div>`;
     return;
@@ -56,6 +62,64 @@ async function loadCvs() {
   });
 }
 
+/**
+ * Onboarding step 2: after the first CV exists, ask once for the job-search
+ * context (region, remote, target comp) instead of leaving Job Search to ask
+ * on every single search. `profile.updatedAt` is the "already asked" flag --
+ * both Save and Skip set it, so this never nags twice.
+ */
+async function renderOnboarding(cvs) {
+  if (!cvs.length) {
+    onboardingBanner.innerHTML = `<div class="card empty-state">
+        <h2>Welcome — let's get your CV in here</h2>
+        <p class="muted">Upload a file or paste your CV text below. Once it's in the store you can improve it with the assistant, or head to Tailor / Job Search to start applying.</p>
+      </div>`;
+    return;
+  }
+
+  const profile = await api("/profile").catch(() => null);
+  if (!profile || profile.updatedAt) {
+    onboardingBanner.innerHTML = "";
+    return;
+  }
+
+  onboardingBanner.innerHTML = `
+    <div class="card">
+      <h2>Where are you looking?</h2>
+      <p class="muted">Save this once and Job Search will use it automatically — you can change it anytime from the Job Search page.</p>
+      <div class="grid cols-3">
+        <div><label>City</label><input type="text" id="obCity" /></div>
+        <div><label>Region/State</label><input type="text" id="obRegion" /></div>
+        <div><label>Country</label><input type="text" id="obCountry" /></div>
+      </div>
+      <label><input type="checkbox" id="obRemote" style="width:auto; display:inline-block;" /> Include / prefer fully remote roles</label>
+      <label>Minimum target compensation (optional)</label>
+      <input type="text" id="obMinComp" placeholder="e.g. €80,000" />
+      <div class="row" style="margin-top:12px;">
+        <button class="btn small" id="obSave">Save</button>
+        <button class="btn secondary small" id="obSkip">Skip for now</button>
+      </div>
+    </div>`;
+
+  document.getElementById("obSave").onclick = async () => {
+    await api("/profile", {
+      method: "PUT",
+      body: {
+        city: document.getElementById("obCity").value.trim(),
+        region: document.getElementById("obRegion").value.trim(),
+        country: document.getElementById("obCountry").value.trim(),
+        remote: document.getElementById("obRemote").checked,
+        minComp: document.getElementById("obMinComp").value.trim(),
+      },
+    });
+    onboardingBanner.innerHTML = "";
+  };
+  document.getElementById("obSkip").onclick = async () => {
+    await api("/profile", { method: "PUT", body: {} });
+    onboardingBanner.innerHTML = "";
+  };
+}
+
 document.getElementById("uploadBtn").onclick = async () => {
   const fileInput = document.getElementById("cvFile");
   if (!fileInput.files[0]) return alert("Choose a file first.");
@@ -89,37 +153,45 @@ document.getElementById("pasteBtn").onclick = async () => {
   }
 };
 
-// --- Interactive improvement chat -----------------------------------------
-const chatCard = document.getElementById("chatCard");
-const chatLog = document.getElementById("chatLog");
-const chatTitle = document.getElementById("chatTitle");
-const proposedWrap = document.getElementById("proposedWrap");
+// --- Interactive improvement: document view + assistant rail ---------------
+const improveCard = document.getElementById("improveCard");
+const improveTitle = document.getElementById("improveTitle");
+const cvDocMount = document.getElementById("cvDocMount");
 let activeCvId = null;
+let doc = null;
 
 async function openChat(cvId, label) {
   activeCvId = cvId;
-  chatTitle.textContent = `Improve: ${label}`;
-  chatCard.style.display = "block";
-  chatCard.scrollIntoView({ behavior: "smooth" });
-  proposedWrap.innerHTML = "";
-  const history = await api(`/cvs/${cvId}/chat`);
-  renderLog(history);
+  improveTitle.textContent = `Improve: ${label}`;
+  improveCard.style.display = "block";
+  improveCard.scrollIntoView({ behavior: "smooth" });
+
+  const [cv, history] = await Promise.all([api(`/cvs/${cvId}`), api(`/cvs/${cvId}/chat`)]);
+
+  doc = mountCvDocument(cvDocMount, {
+    content: cv.content,
+    editable: true,
+    onSave: async (text) => {
+      const saved = await api(`/cvs/${activeCvId}/chat/accept`, { method: "POST", body: { content: text } });
+      activeCvId = saved.id;
+      improveTitle.textContent = `Improve: ${saved.label}`;
+      loadCvs();
+    },
+    assistant: true,
+    onAssistantSend: sendChat,
+  });
+
+  history.forEach((m) => doc.assistant.addNote(m.role, stripCvBlock(m.content)));
 }
 
-document.getElementById("closeChatBtn").onclick = () => {
-  chatCard.style.display = "none";
+document.getElementById("closeImproveBtn").onclick = () => {
+  improveCard.style.display = "none";
   activeCvId = null;
+  doc = null;
 };
 
-function renderLog(messages) {
-  chatLog.innerHTML = messages
-    .map((m) => `<div class="msg ${m.role}">${escapeHtml(stripCvBlock(m.content))}</div>`)
-    .join("");
-  chatLog.scrollTop = chatLog.scrollHeight;
-}
-
 function stripCvBlock(text) {
-  return text.replace(/```CV\n[\s\S]*?\n```/, "[proposed CV shown below]").trim();
+  return text.replace(/```CV\n[\s\S]*?\n```/, "[proposed CV shown in the document]").trim();
 }
 
 // Requires the closing fence, so a still-streaming (or truncated) reply
@@ -128,11 +200,6 @@ function extractCvBlock(text) {
   return text.match(/```CV\n([\s\S]*?)\n```/)?.[1].trim() || null;
 }
 
-document.getElementById("chatSend").onclick = sendChat;
-document.getElementById("chatInput").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") sendChat();
-});
-
 /**
  * Consume the SSE stream from POST /cvs/:id/chat.
  *
@@ -140,15 +207,11 @@ document.getElementById("chatInput").addEventListener("keydown", (e) => {
  * a long spinner. `done` carries the full text, which is what the CV-block
  * extraction runs against.
  */
-async function sendChat() {
-  const input = document.getElementById("chatInput");
-  const message = input.value.trim();
-  if (!message || !activeCvId) return;
-  input.value = "";
-  input.disabled = true;
-  chatLog.insertAdjacentHTML("beforeend", `<div class="msg user">${escapeHtml(message)}</div>`);
-  chatLog.insertAdjacentHTML("beforeend", `<div class="msg assistant" id="pending"><span class="spinner"></span> thinking…</div>`);
-  chatLog.scrollTop = chatLog.scrollHeight;
+async function sendChat(message) {
+  if (!activeCvId || !doc) return;
+  doc.assistant.setInputDisabled(true);
+  doc.assistant.addNote("user", message);
+  const pending = doc.assistant.addNote("assistant", "thinking…");
 
   try {
     const res = await fetch(`/api/cvs/${activeCvId}/chat`, {
@@ -169,8 +232,7 @@ async function sendChat() {
       throw new Error(error || `Request failed (${res.status})`);
     }
 
-    const pending = document.getElementById("pending");
-    pending.textContent = "";
+    doc.assistant.setNoteText(pending, "");
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -180,8 +242,8 @@ async function sendChat() {
 
     // SSE frames are separated by a blank line; a frame can straddle chunks.
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      const { done: streamDone, value } = await reader.read();
+      if (streamDone) break;
       buffer += decoder.decode(value, { stream: true });
 
       const frames = buffer.split("\n\n");
@@ -195,8 +257,7 @@ async function sendChat() {
         const data = JSON.parse(dataLine);
         if (event === "text") {
           reply += data.text;
-          pending.textContent = stripCvBlock(reply);
-          chatLog.scrollTop = chatLog.scrollHeight;
+          doc.assistant.setNoteText(pending, stripCvBlock(reply));
         } else if (event === "done") {
           reply = data.reply;
         } else if (event === "error") {
@@ -205,32 +266,27 @@ async function sendChat() {
       }
     }
 
-    pending.removeAttribute("id");
-    pending.textContent = stripCvBlock(reply);
-    chatLog.scrollTop = chatLog.scrollHeight;
+    doc.assistant.setNoteText(pending, stripCvBlock(reply));
 
     if (streamError) throw new Error(streamError);
 
     const proposedCv = extractCvBlock(reply);
     if (proposedCv) {
-      proposedWrap.innerHTML = `
-        <h2 style="margin-top:16px;">Proposed revision</h2>
-        <pre class="cv-preview">${escapeHtml(proposedCv)}</pre>
-        <div class="row" style="margin-top:8px;">
-          <button class="btn" id="acceptCv">Accept as new version</button>
-        </div>`;
-      document.getElementById("acceptCv").onclick = async () => {
-        await api(`/cvs/${activeCvId}/chat/accept`, { method: "POST", body: { content: proposedCv } });
-        proposedWrap.innerHTML = `<p class="muted">Saved as a new CV version.</p>`;
-        loadCvs();
-      };
+      doc.showProposed(proposedCv, {
+        label: "The assistant proposed a full rewrite.",
+        onAccept: async (text) => {
+          const saved = await api(`/cvs/${activeCvId}/chat/accept`, { method: "POST", body: { content: text } });
+          activeCvId = saved.id;
+          improveTitle.textContent = `Improve: ${saved.label}`;
+          doc.assistant.addNote("assistant", "Saved as a new CV version.");
+          loadCvs();
+        },
+      });
     }
   } catch (err) {
-    document.getElementById("pending")?.remove();
     showError(main, err);
   } finally {
-    input.disabled = false;
-    input.focus();
+    doc.assistant.setInputDisabled(false);
   }
 }
 
