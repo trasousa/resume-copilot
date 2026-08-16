@@ -7,7 +7,48 @@ import { cvTextToDocxBuffer, docxFilename } from "../lib/docxOut.js";
 
 const router = new Hono();
 
+// The tailoring prompt asks the model for "## Match Analysis" containing a
+// score out of 100 in prose (e.g. "Match score: 85/100" or "Match Score: 85%").
+// This is a best-effort scrape of that number for the dashboard/detail-view
+// badges -- if the model phrases it differently, matchScore stays null and
+// the UI simply doesn't show a badge, it never blocks tailoring itself.
+function parseMatchScore(analysisText) {
+  const m = analysisText.match(/match\s*score[:\s]*[^\d]{0,10}(\d{1,3})/i);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return n >= 0 && n <= 100 ? n : null;
+}
+
 router.get("/", async (c) => c.json(await db.listApplications(c.env.DB)));
+
+router.get("/stats", async (c) => c.json(await db.getApplicationStats(c.env.DB)));
+
+router.get("/:id/activity", async (c) => {
+  const app = await db.getApplication(c.env.DB, c.req.param("id"));
+  if (!app) return c.json({ error: "Application not found" }, 404);
+  return c.json(await db.listActivity(c.env.DB, app.id));
+});
+
+router.post("/:id/activity", async (c) => {
+  const id = c.req.param("id");
+  const app = await db.getApplication(c.env.DB, id);
+  if (!app) return c.json({ error: "Application not found" }, 404);
+
+  const { title, detail, occurredAt } = await c.req.json();
+  if (!title?.trim()) return c.json({ error: "title is required" }, 400);
+
+  const now = new Date().toISOString();
+  const ev = await db.addActivity(c.env.DB, {
+    id: crypto.randomUUID(),
+    applicationId: id,
+    type: "reminder",
+    title: title.trim(),
+    detail: detail || "",
+    occurredAt: occurredAt || now,
+    createdAt: now,
+  });
+  return c.json(ev, 201);
+});
 
 router.get("/:id", async (c) => {
   const app = await db.getApplication(c.env.DB, c.req.param("id"));
@@ -38,6 +79,15 @@ router.post("/", async (c) => {
     createdAt: now,
     updatedAt: now,
   });
+  await db.addActivity(c.env.DB, {
+    id: crypto.randomUUID(),
+    applicationId: app.id,
+    type: "created",
+    title: "Application created",
+    detail: b.source === "job-search" ? "Started from Job Search" : "Added manually",
+    occurredAt: now,
+    createdAt: now,
+  });
   return c.json(app, 201);
 });
 
@@ -57,7 +107,20 @@ router.patch("/:id", async (c) => {
     if (b[k] !== undefined) patch[k] = b[k];
   if (b.stage !== undefined && b.stage !== app.stage) patch.stage = b.stage;
 
-  return c.json(await db.updateApplication(c.env.DB, id, patch));
+  const updated = await db.updateApplication(c.env.DB, id, patch);
+  if (patch.stage !== undefined) {
+    const now2 = new Date().toISOString();
+    await db.addActivity(c.env.DB, {
+      id: crypto.randomUUID(),
+      applicationId: id,
+      type: "stage_change",
+      title: `Moved to ${patch.stage[0].toUpperCase()}${patch.stage.slice(1)}`,
+      detail: "",
+      occurredAt: now2,
+      createdAt: now2,
+    });
+  }
+  return c.json(updated);
 });
 
 router.delete("/:id", async (c) => {
@@ -94,10 +157,15 @@ router.post("/:id/tailor", async (c) => {
     `1. "## Match Analysis" -- match score out of 100, key overlaps, key gaps, ` +
     `and what to emphasize.\n` +
     `2. "## Tailored CV" -- the full tailored CV text, inside a fenced block ` +
-    `that starts with \`\`\`CV and ends with \`\`\`.`;
+    `that starts with \`\`\`CV and ends with \`\`\`.\n\n` +
+    `Then output a fenced block starting with \`\`\`KEYWORDS and ending with ` +
+    `\`\`\` containing a JSON array of 5-12 short exact phrases (copied verbatim ` +
+    `from the Tailored CV text) that most directly reflect the job posting's ` +
+    `requirements -- these get highlighted in the UI.`;
 
   const { text } = await runTask({ env: c.env, stable, prompt });
   const tailoredText = text.match(/```CV\n([\s\S]*?)\n```/)?.[1].trim() || null;
+  const matchScore = parseMatchScore(text);
 
   let newCv = null;
   if (tailoredText) {
@@ -110,10 +178,32 @@ router.post("/:id/tailor", async (c) => {
       createdAt: new Date().toISOString(),
     });
     // Scoped UPDATE -- can't clobber edits made while the model was running.
-    await db.updateApplication(c.env.DB, id, { cvId: newCv.id });
+    await db.updateApplication(c.env.DB, id, { cvId: newCv.id, matchScore });
   }
 
-  return c.json({ analysis: text, tailoredCv: newCv });
+  if (!newCv && matchScore != null) {
+    // No structured CV came back, but a score did -- still worth recording.
+    await db.updateApplication(c.env.DB, id, { matchScore });
+  }
+  const tailoredAt = new Date().toISOString();
+  await db.addActivity(c.env.DB, {
+    id: crypto.randomUUID(),
+    applicationId: id,
+    type: "tailored",
+    title: "Materials tailored",
+    detail: matchScore != null ? `Match score ${matchScore}%` : "",
+    occurredAt: tailoredAt,
+    createdAt: tailoredAt,
+  });
+
+  return c.json({
+    analysis: text,
+    tailoredCv: newCv,
+    keywords: (() => {
+      try { return JSON.parse(text.match(/```KEYWORDS\n([\s\S]*?)\n```/)?.[1] || "[]"); }
+      catch { return []; }
+    })(),
+  });
 });
 
 router.get("/:id/tailored/download", async (c) => {

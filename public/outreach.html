@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Outreach Studio · Advocate</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="topnav"></div>
+  <main id="outreachMain" style="max-width: none; padding: 24px 28px;">
+    <div class="studio-split" style="grid-template-columns: 320px 1fr;">
+      <div>
+        <h1 style="margin-bottom: 14px;">Studio</h1>
+        <div class="row" id="kindTabs" style="margin-bottom: 16px;">
+          <button type="button" class="chip active" data-kind="coverLetter">Cover Letters</button>
+          <button type="button" class="chip" data-kind="coldEmail">Cold Emails</button>
+        </div>
+
+        <div class="card">
+          <h2>AI Assistant</h2>
+          <label>CV to draft from</label>
+          <select id="cvSelect"></select>
+          <label>Target Role / Company</label>
+          <input type="text" id="targetRoleCompany" placeholder="e.g. Senior Designer at Acme Corp" />
+          <label>Tone</label>
+          <div class="grid cols-2" id="toneGrid">
+            <button type="button" class="chip tone active" data-tone="professional">Professional</button>
+            <button type="button" class="chip tone" data-tone="casual">Casual</button>
+            <button type="button" class="chip tone" data-tone="confident">Confident</button>
+            <button type="button" class="chip tone" data-tone="referral">Referral</button>
+          </div>
+          <button class="btn" id="generateBtn" style="width:100%; justify-content:center; margin-top:14px;">Generate Draft</button>
+          <span id="genStatus" class="muted"></span>
+        </div>
+
+        <div class="row between" style="margin-top:20px;">
+          <h2 style="margin:0;">Saved Templates</h2>
+          <button class="icon-btn" id="saveTemplateBtn" title="Save current draft as a template"></button>
+        </div>
+        <div id="templatesList"></div>
+      </div>
+
+      <div class="card" id="editorPane">
+        <div class="row between">
+          <div class="row" style="gap:6px;">
+            <button class="icon-btn" title="Bold" disabled>B</button>
+            <button class="icon-btn" title="Italic" disabled>I</button>
+          </div>
+          <div class="row">
+            <span class="muted" id="savedIndicator"></span>
+            <button class="btn secondary small" id="exportPdfBtn">Export PDF</button>
+            <button class="btn small" id="copyBtn">Copy to Clipboard</button>
+          </div>
+        </div>
+        <div id="editorTitle" style="font-family:var(--font-display); font-size:24px; font-weight:700; margin: 16px 0 10px;">Untitled draft</div>
+        <div id="editorBody" contenteditable="true" class="outreach-editor"></div>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="js/outreach.js"></script>
+</body>
+</html>

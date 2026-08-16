@@ -1,3 +1,5 @@
+import { icon } from "./icons.js";
+
 export async function api(path, options = {}) {
   const res = await fetch(`/api${path}`, {
     headers: options.body instanceof FormData ? {} : { "Content-Type": "application/json" },
@@ -95,35 +97,42 @@ export function safeUrl(url) {
 
 export function renderNav(active) {
   const links = [
-    ["index.html", "Tracker"],
-    ["cv-store.html", "CV Store"],
-    ["tailor.html", "Tailor"],
-    ["job-search.html", "Job Search"],
+    ["job-search.html", "Search", "search"],
+    ["tailor.html", "Tailor", "edit"],
+    ["index.html", "Applications", "list"],
+    ["profile.html", "Profile", "user"],
   ];
   const el = document.getElementById("topnav");
   if (!el) return;
   el.innerHTML = `
     <header class="topbar">
-      <div class="brand">Resume Copilot</div>
+      <a href="index.html" class="brand"><span class="brand-mark">A</span> Advocate</a>
       <nav class="tabs">
-        ${links.map(([href, label]) => `<a href="${href}" class="${active === href ? "active" : ""}">${label}</a>`).join("")}
+        ${links
+          .map(
+            ([href, label, iconName]) =>
+              `<a href="${href}" class="${active === href ? "active" : ""}">${icon(iconName)}${label}</a>`
+          )
+          .join("")}
       </nav>
-      <span class="muted" id="whoami" style="font-size: 0.85em; margin: 0 10px;"></span>
-      <button class="btn secondary small" id="logoutBtn">Log out</button>
+      <div class="row" style="gap: 10px;">
+        <a class="btn" href="index.html?new=1" id="topnavNewApp">${icon("plus")} New Application</a>
+        <button class="icon-btn" title="Notifications" disabled>${icon("bell")}</button>
+        <a class="icon-btn" href="profile.html" title="Settings">${icon("gear")}</a>
+        <span class="avatar-circle" id="whoamiAvatar">?</span>
+      </div>
     </header>`;
 
-  // /cdn-cgi/access/logout is a path Cloudflare Access reserves on every
-  // hostname it protects -- it's intercepted at the edge (this Worker never
-  // sees the request), clears the Access session, and shows Cloudflare's own
-  // signed-out page. There's no app-level session to clear here.
-  document.getElementById("logoutBtn").onclick = () => {
+  document.getElementById("logoutBtn")?.addEventListener("click", () => {
     location.href = "/cdn-cgi/access/logout";
-  };
+  });
 
   fetch("/api/auth/me")
     .then((r) => r.json())
     .then(({ email }) => {
-      if (email) document.getElementById("whoami").textContent = email;
+      const avatar = document.getElementById("whoamiAvatar");
+      if (email && avatar) avatar.textContent = email[0].toUpperCase();
+      if (email && avatar) avatar.title = email;
     })
     .catch(() => {});
 }

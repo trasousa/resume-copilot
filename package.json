@@ -18,7 +18,7 @@
     "db:create": "wrangler d1 create resume-copilot",
     "db:init": "wrangler d1 execute resume-copilot --remote --file=./schema.sql",
     "db:init:local": "wrangler d1 execute resume-copilot --local --file=./schema.sql",
-    "db:reset:local": "wrangler d1 execute resume-copilot --local --command=\"DELETE FROM chat_messages; DELETE FROM documents; DELETE FROM applications; DELETE FROM cvs; DELETE FROM profile;\"",
+    "db:reset:local": "wrangler d1 execute resume-copilot --local --command=\"DELETE FROM chat_messages; DELETE FROM documents; DELETE FROM templates; DELETE FROM activity_events; DELETE FROM applications; DELETE FROM cvs; DELETE FROM profile;\"",
     "r2:create": "wrangler r2 bucket create resume-copilot-originals",
     "prebuild": "npm run build:skills",
     "build": "wrangler deploy --dry-run --outdir dist"

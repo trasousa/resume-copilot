@@ -1,4 +1,5 @@
 import { api, escapeHtml, renderNav, showError, checkApiKey, safeUrl, ensureCvsOrEmptyState, fetchJobPostFromUrl } from "./app.js";
+import { icon } from "./icons.js";
 
 renderNav("job-search.html");
 checkApiKey();
@@ -7,6 +8,14 @@ const main = document.querySelector("main");
 const cvSelect = document.getElementById("cvSelect");
 const resultEl = document.getElementById("result");
 const statusEl = document.getElementById("status");
+
+const chipEls = document.querySelectorAll("#jobTypeChips .chip");
+chipEls.forEach((chip) => {
+  chip.onclick = () => chip.classList.toggle("active");
+});
+function selectedJobTypes() {
+  return [...chipEls].filter((c) => c.classList.contains("active")).map((c) => c.dataset.type);
+}
 
 async function loadCvs() {
   const cvs = await ensureCvsOrEmptyState(main, "Job search needs a CV to match against — add one first.");
@@ -76,7 +85,7 @@ document.getElementById("searchBtn").onclick = async () => {
         country,
         remote,
         minComp: document.getElementById("minComp").value.trim(),
-        notes: document.getElementById("notes").value.trim(),
+        notes: [document.getElementById("notes").value.trim(), selectedJobTypes().length ? `Job type preference: ${selectedJobTypes().join(", ")}` : ""].filter(Boolean).join(". "),
       },
     });
     saveProfileFromForm();
@@ -99,16 +108,23 @@ function render(data, cvId) {
     </div>
     ${
       jobs.length
-        ? `<div class="card"><h2>Start an application</h2><p class="muted">Starting fetches the posting, creates a tracked application, and tailors your CV to it.</p>${jobs
+        ? `<div class="job-grid">${jobs
             .map(
               (j, i) => `
-          <div class="row between" style="padding:8px 0; border-bottom:1px solid var(--border);">
-            <div>
-              <strong>${escapeHtml(j.title)}</strong> — ${escapeHtml(j.company)}<br/>
-              <span class="muted">${escapeHtml(j.location || "")} ${j.compEstimate ? "· " + escapeHtml(j.compEstimate) : ""}</span>
-              ${safeUrl(j.url) ? `<br/><a href="${escapeHtml(safeUrl(j.url))}" target="_blank" rel="noopener">${escapeHtml(j.url)}</a>` : ""}
+          <div class="card job-card">
+            <div class="row between">
+              <div>
+                <h2 style="margin-bottom:2px;">${escapeHtml(j.title)}</h2>
+                <p class="muted" style="margin:0;">${escapeHtml(j.company)}</p>
+              </div>
+              ${j.matchScore != null ? `<span class="match-badge ${j.matchScore >= 80 ? "high" : j.matchScore >= 50 ? "mid" : "low"}">${j.matchScore}% MATCH</span>` : ""}
             </div>
-            <button class="btn secondary small" data-idx="${i}">Start application</button>
+            <p class="muted" style="margin:10px 0;">${icon("mapPin")} ${escapeHtml(j.location || "")} ${j.compEstimate ? `&nbsp;${icon("dollar")} ${escapeHtml(j.compEstimate)}` : ""}</p>
+            ${j.fitNote ? `<p style="font-size:13.5px;">${escapeHtml(j.fitNote)}</p>` : ""}
+            <div class="row" style="margin-top:12px;">
+              <button class="btn" data-idx="${i}" style="flex:1;">Tailor Resume</button>
+              ${safeUrl(j.url) ? `<a class="icon-btn" href="${escapeHtml(safeUrl(j.url))}" target="_blank" rel="noopener" title="View posting">${icon("chevronRight")}</a>` : ""}
+            </div>
           </div>`
             )
             .join("")}</div>`
@@ -165,7 +181,7 @@ function render(data, cvId) {
         window.location.href = `application.html?id=${app.id}`;
       } catch (err) {
         btn.disabled = false;
-        btn.textContent = "Start application";
+        btn.textContent = "Tailor Resume";
         showError(main, err);
       }
     };

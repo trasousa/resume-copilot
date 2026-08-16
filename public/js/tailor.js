@@ -46,7 +46,10 @@ document.getElementById("runBtn").onclick = async () => {
 };
 
 function render(data) {
-  const analysisText = data.analysis.replace(/```CV\n[\s\S]*?\n```/, "").trim();
+  const analysisText = data.analysis
+    .replace(/```CV\n[\s\S]*?\n```/, "")
+    .replace(/```KEYWORDS\n[\s\S]*?\n```/, "")
+    .trim();
   resultEl.innerHTML = `
     <div class="card">
       <h2>Match analysis</h2>
@@ -61,10 +64,15 @@ function render(data) {
     return;
   }
 
+  const scoreMatch = data.analysis.match(/match\s*score[:\s]*[^\d]{0,10}(\d{1,3})/i);
+  const pill = document.getElementById("matchPill");
+  if (scoreMatch) { pill.textContent = `${scoreMatch[1]}% Match`; pill.style.display = "inline-block"; }
+
   const doc = mountCvDocument(document.getElementById("tailoredCvMount"), {
     content: data.tailoredText,
     editable: true,
     saveLabel: "Save as new CV version",
+    highlightTerms: data.keywords || [],
     onSave: (text) => api("/tailor/quick/save", { method: "POST", body: { baseCvId: data.baseCvId, content: text } }),
   });
 

@@ -37,8 +37,11 @@ router.post("/search", async (c) => {
     `markdown.\n\nThen, ALSO output the same shortlist as a JSON array (same ` +
     `jobs, same order) inside a fenced block starting with \`\`\`JOBS and ending ` +
     `with \`\`\`, where each item is exactly: {"title": string, "company": string, ` +
-    `"location": string, "url": string, "compEstimate": string, "fitNote": ` +
-    `string}. The "url" must be a real URL from your search results -- omit a ` +
+    `"location": string, "url": string, "compEstimate": string, "matchScore": ` +
+    `number, "fitNote": string}. Each item must also include "matchScore": an integer 0-100 ` +
+    `estimating how well this posting fits the candidate's CV (skills, ` +
+    `seniority, domain overlap) -- the same scale used elsewhere for match ` +
+    `scoring. The "url" must be a real URL from your search results -- omit a ` +
     `job from the JSON entirely rather than inventing a URL.`;
 
   const { text, sources } = await runWebSearchTask({

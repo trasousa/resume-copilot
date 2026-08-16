@@ -1,4 +1,5 @@
 import { api, escapeHtml, renderNav, showError, timeAgo, checkApiKey, wireJobPostFetch } from "./app.js";
+import { icon } from "./icons.js";
 
 renderNav("index.html");
 checkApiKey();
@@ -32,6 +33,10 @@ document.getElementById("newAppBtn").onclick = async () => {
   }
 };
 document.getElementById("cancelNewApp").onclick = () => dialog.close();
+
+if (new URLSearchParams(window.location.search).get("new") === "1") {
+  document.getElementById("newAppBtn").click();
+}
 
 document.getElementById("saveNewApp").onclick = async () => {
   const company = document.getElementById("f-company").value.trim();
@@ -69,6 +74,32 @@ function isStale(app) {
   return false;
 }
 
+function renderStats(apps, stats) {
+  const interviewsActive = apps.filter((a) => a.stage === "interview").length;
+  const offersPending = apps.filter((a) => a.stage === "offer").length;
+  document.getElementById("statTiles").innerHTML = `
+    <div class="stat-tile">
+      <div class="row between"><span class="stat-label">Total</span><span class="stat-icon">${icon("list")}</span></div>
+      <div class="stat-value">${stats.total}</div>
+      <div class="stat-sub">Across every stage</div>
+    </div>
+    <div class="stat-tile">
+      <div class="row between"><span class="stat-label">Interviews</span><span class="stat-icon">${icon("mail")}</span></div>
+      <div class="stat-value">${stats.interviews}</div>
+      <div class="stat-sub">${interviewsActive} active</div>
+    </div>
+    <div class="stat-tile">
+      <div class="row between"><span class="stat-label">Offers</span><span class="stat-icon">${icon("sparkle")}</span></div>
+      <div class="stat-value">${stats.offers}</div>
+      <div class="stat-sub">${offersPending ? "Pending review" : "None yet"}</div>
+    </div>
+    <div class="stat-tile">
+      <div class="row between"><span class="stat-label">Avg Match</span><span class="stat-icon">${icon("search")}</span></div>
+      <div class="stat-value">${stats.avgMatch != null ? stats.avgMatch + "%" : "—"}</div>
+      <div class="stat-sub">${stats.avgMatch != null ? (stats.avgMatch >= 80 ? "Solid alignment" : "Room to improve") : "Tailor a CV to see this"}</div>
+    </div>`;
+}
+
 async function load() {
   let apps = [];
   try {
@@ -76,6 +107,9 @@ async function load() {
   } catch (err) {
     showError(document.querySelector("main"), err);
   }
+
+  const stats = await api("/applications/stats").catch(() => ({ total: apps.length, interviews: 0, offers: 0, avgMatch: null }));
+  renderStats(apps, stats);
 
   const stale = apps.filter((a) => isStale(a) && !["offer", "rejected", "withdrawn"].includes(a.stage));
   staleNotice.innerHTML = stale.length
@@ -107,11 +141,15 @@ async function load() {
     body.innerHTML = items
       .map(
         (a) => `
-      <div class="app-card" data-id="${a.id}">
-        <div class="company">${escapeHtml(a.company)}</div>
-        <div class="role">${escapeHtml(a.role)}</div>
+      <div class="app-card app-card-${a.stage}" data-id="${a.id}">
+        <div class="row between">
+          <span class="status-chip ${a.stage}">${a.stage}</span>
+          ${a.matchScore != null ? `<span class="match-badge ${a.matchScore >= 80 ? "high" : a.matchScore >= 50 ? "mid" : "low"}">${a.matchScore}%</span>` : ""}
+        </div>
+        <div class="company">${escapeHtml(a.role)}</div>
+        <div class="role">${escapeHtml(a.company)}</div>
         <div class="meta">${escapeHtml(a.location || "")} ${isStale(a) ? '<span class="pill warn">stalled</span>' : ""}</div>
-        <div class="meta">updated ${timeAgo(a.updatedAt)}</div>
+        <div class="meta">${icon("clock")} updated ${timeAgo(a.updatedAt)}</div>
       </div>`
       )
       .join("");

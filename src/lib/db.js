@@ -42,6 +42,7 @@ const appFromRow = (r) =>
     stageEnteredAt: r.stage_entered_at,
     appliedAt: r.applied_at,
     compEstimate: r.comp_estimate,
+    matchScore: r.match_score ?? null,
     notes: r.notes,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -177,6 +178,7 @@ const PATCHABLE = {
   link: "link",
   location: "location",
   compEstimate: "comp_estimate",
+  matchScore: "match_score",
   cvId: "cv_id",
   jobPostText: "job_post_text",
 };
@@ -252,6 +254,114 @@ export async function createDocument(db, doc) {
 
 export async function deleteDocument(db, id) {
   await db.prepare("DELETE FROM documents WHERE id = ?").bind(id).run();
+}
+
+// --- Activity timeline -------------------------------------------------------
+
+const activityFromRow = (r) =>
+  r && {
+    id: r.id,
+    applicationId: r.application_id,
+    type: r.type,
+    title: r.title,
+    detail: r.detail,
+    occurredAt: r.occurred_at,
+    createdAt: r.created_at,
+  };
+
+export async function listActivity(db, applicationId) {
+  const { results } = await db
+    .prepare(
+      "SELECT * FROM activity_events WHERE application_id = ? ORDER BY occurred_at DESC"
+    )
+    .bind(applicationId)
+    .all();
+  return results.map(activityFromRow);
+}
+
+export async function addActivity(db, ev) {
+  await db
+    .prepare(
+      `INSERT INTO activity_events (id, application_id, type, title, detail, occurred_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(ev.id, ev.applicationId, ev.type, ev.title, ev.detail || "", ev.occurredAt, ev.createdAt)
+    .run();
+  return activityFromRow({
+    id: ev.id, application_id: ev.applicationId, type: ev.type, title: ev.title,
+    detail: ev.detail || "", occurred_at: ev.occurredAt, created_at: ev.createdAt,
+  });
+}
+
+// --- Dashboard stats ---------------------------------------------------------
+
+export async function getApplicationStats(db) {
+  const row = await db
+    .prepare(
+      `SELECT
+         COUNT(*) AS total,
+         SUM(CASE WHEN stage = 'interview' THEN 1 ELSE 0 END) AS interviews,
+         SUM(CASE WHEN stage = 'offer' THEN 1 ELSE 0 END) AS offers,
+         AVG(CASE WHEN match_score IS NOT NULL THEN match_score END) AS avg_match
+       FROM applications`
+    )
+    .first();
+  return {
+    total: row?.total ?? 0,
+    interviews: row?.interviews ?? 0,
+    offers: row?.offers ?? 0,
+    avgMatch: row?.avg_match != null ? Math.round(row.avg_match) : null,
+  };
+}
+
+// --- Templates (saved Outreach Studio drafts) --------------------------------
+
+const templateFromRow = (r) =>
+  r && {
+    id: r.id,
+    kind: r.kind,
+    label: r.label,
+    tone: r.tone,
+    targetRoleCompany: r.target_role_company,
+    content: r.content,
+    createdAt: r.created_at,
+    lastUsedAt: r.last_used_at,
+  };
+
+export async function listTemplates(db) {
+  const { results } = await db
+    .prepare("SELECT * FROM templates ORDER BY last_used_at DESC")
+    .all();
+  return results.map(templateFromRow);
+}
+
+export async function getTemplate(db, id) {
+  return templateFromRow(
+    await db.prepare("SELECT * FROM templates WHERE id = ?").bind(id).first()
+  );
+}
+
+export async function createTemplate(db, t) {
+  await db
+    .prepare(
+      `INSERT INTO templates (id, kind, label, tone, target_role_company, content, created_at, last_used_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(t.id, t.kind, t.label, t.tone, t.targetRoleCompany || "", t.content, t.createdAt, t.createdAt)
+    .run();
+  return getTemplate(db, t.id);
+}
+
+export async function touchTemplate(db, id) {
+  await db
+    .prepare("UPDATE templates SET last_used_at = ? WHERE id = ?")
+    .bind(new Date().toISOString(), id)
+    .run();
+  return getTemplate(db, id);
+}
+
+export async function deleteTemplate(db, id) {
+  await db.prepare("DELETE FROM templates WHERE id = ?").bind(id).run();
 }
 
 // --- Chat ------------------------------------------------------------------

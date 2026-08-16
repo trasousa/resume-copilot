@@ -52,7 +52,7 @@ CI (`.github/workflows/ci.yml`) runs on every PR and push to `dev`/`main`:
 - **Worker** (`src/`): [Hono](https://hono.dev) routes calling an LLM with the relevant skill's `SKILL.md` injected as the system prompt. Routes import from `src/lib/llm.js`, which dispatches to `src/lib/anthropic.js` (Claude, default) or `src/lib/gemini.js` (Gemini) based on `LLM_PROVIDER` -- see "LLM provider" below.
 - **Frontend** (`public/`): plain HTML/CSS/JS, no build step. Four pages -- **Tracker** (kanban by stage), **CV Store** (upload/paste CVs, mark a master, improve one via streaming chat), **Tailor** (quick job-post-vs-CV check), and **Job Search** (live web search ranked by fit and pay).
 - **Skills** (`skills/`): all 22 skills from [Paramchoudhary/ResumeSkills](https://github.com/Paramchoudhary/ResumeSkills), plus two written for this app -- `job-search-matcher` and `application-tracker`. `src/lib/skills.js` holds the routing table (`SKILL_ROUTES`) mapping each task to the skills that apply.
-- **Database** (`schema.sql`): D1. Four tables -- `cvs`, `applications`, `documents`, `chat_messages`.
+- **Database** (`schema.sql`): D1. Eight tables -- `cvs`, `applications`, `documents`, `activity_events`, `templates`, `chat_messages`, `profile`, `token_usage`.
 - **Original files** (`src/lib/r2.js`): R2. As-uploaded CV bytes, keyed by CV id.
 
 Because Workers have no filesystem, `scripts/build-skills.mjs` inlines the skills into `src/skills.generated.js` at build time (gitignored -- regenerate with `npm run build:skills`).
@@ -102,6 +102,14 @@ npm run deploy
 ```
 
 That's the whole deploy -- one Worker, static assets and API together, no separate Pages project. Prints a `*.workers.dev` URL you can use immediately.
+
+**Upgrading an existing deployment** (a remote D1 database created before the `match_score` column was added to `applications`): `npm run db:init`'s `CREATE TABLE IF NOT EXISTS` is a no-op against a table that already exists, so it won't backfill the new column on its own. Run this once against remote before `npm run db:init`:
+
+```bash
+npx wrangler d1 execute resume-copilot --remote --command="ALTER TABLE applications ADD COLUMN match_score INTEGER;"
+```
+
+Skip this on a brand-new database -- `db:init`/`db:init:local` already creates `applications` with `match_score` included.
 
 ## Custom domain
 

@@ -1,7 +1,7 @@
 import { api, escapeHtml, renderNav, showError, timeAgo, checkApiKey } from "./app.js";
 import { mountCvDocument } from "./cv-doc.js";
 
-renderNav("cv-store.html");
+renderNav("profile.html"); // CV Store isn't a top-level nav tab; Profile links here ("Manage in CV Store").
 checkApiKey();
 
 const cvList = document.getElementById("cvList");

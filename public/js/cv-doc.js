@@ -12,7 +12,7 @@
 
 import { escapeHtml } from "./app.js";
 
-function renderDocHtml(text) {
+function renderDocHtml(text, highlightTerms = []) {
   const lines = (text || "").split("\n");
   let html = "";
   let sawFirstLine = false;
@@ -60,6 +60,19 @@ function renderDocHtml(text) {
     }
   }
   closeList();
+
+  if (highlightTerms.length) {
+    // Longest-first so a shorter term that's a substring of a longer one
+    // (e.g. "React" inside "React and modern JavaScript ecosystems") doesn't
+    // fragment the longer match.
+    const sorted = [...highlightTerms].sort((a, b) => b.length - a.length).filter(Boolean);
+    for (const term of sorted) {
+      const escaped = escapeHtml(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (!escaped) continue;
+      html = html.replace(new RegExp(`(?![^<]*>)${escaped}`, "g"), (m) => `<mark class="kw-highlight">${m}</mark>`);
+    }
+  }
+
   return html || `<p class="muted">Nothing here yet.</p>`;
 }
 
@@ -81,6 +94,7 @@ export function mountCvDocument(container, opts) {
     onSave,
     assistant = false,
     onAssistantSend,
+    highlightTerms = [],
   } = opts;
 
   let baseline = content || "";
@@ -125,7 +139,7 @@ export function mountCvDocument(container, opts) {
   const discardBtn = container.querySelector("#cvDiscardBtn");
   const proposedBanner = container.querySelector("#cvProposedBanner");
 
-  docBody.innerHTML = renderDocHtml(baseline);
+  docBody.innerHTML = renderDocHtml(baseline, highlightTerms);
 
   function currentText() {
     return docBody.contentEditable === "true" ? docBody.innerText.replace(/\n{3,}/g, "\n\n").trim() : baseline;
@@ -143,7 +157,7 @@ export function mountCvDocument(container, opts) {
         // headings/bullets reflect any structural edits the user made.
         const text = currentText();
         docBody.contentEditable = "false";
-        docBody.innerHTML = renderDocHtml(text);
+        docBody.innerHTML = renderDocHtml(text, highlightTerms);
         editToggle.textContent = "Edit";
       } else {
         docBody.contentEditable = "true";
