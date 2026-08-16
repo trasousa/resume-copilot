@@ -452,3 +452,10 @@ nav.tabs a.active { background: var(--advocate-surface-container); color: var(--
 
 .job-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
 .job-card { margin-bottom: 0; }
+
+mark.kw-highlight { background: var(--advocate-success-soft); color: var(--advocate-success); padding: 0 2px; border-radius: 3px; }
+
+.studio-split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; margin-top: 16px; }
+@media (max-width: 1000px) { .studio-split { grid-template-columns: 1fr; } }
+.studio-pane { display: flex; flex-direction: column; min-height: 60vh; }
+.studio-pane textarea { flex: 1; }

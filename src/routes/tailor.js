@@ -33,13 +33,21 @@ router.post("/quick", async (c) => {
     `1. "## Match Analysis" -- match score out of 100, key overlaps, key gaps, ` +
     `and what to emphasize.\n` +
     `2. "## Tailored CV" -- the full tailored CV text, inside a fenced block ` +
-    `that starts with \`\`\`CV and ends with \`\`\`.`;
+    `that starts with \`\`\`CV and ends with \`\`\`.\n\n` +
+    `Then output a fenced block starting with \`\`\`KEYWORDS and ending with ` +
+    `\`\`\` containing a JSON array of 5-12 short exact phrases (copied verbatim ` +
+    `from the Tailored CV text) that most directly reflect the job posting's ` +
+    `requirements -- these get highlighted in the UI.`;
 
   const { text } = await runTask({ env: c.env, stable, prompt });
 
   return c.json({
     analysis: text,
     tailoredText: text.match(/```CV\n([\s\S]*?)\n```/)?.[1].trim() || null,
+    keywords: (() => {
+      try { return JSON.parse(text.match(/```KEYWORDS\n([\s\S]*?)\n```/)?.[1] || "[]"); }
+      catch { return []; }
+    })(),
     baseCvId: baseCv.id,
   });
 });

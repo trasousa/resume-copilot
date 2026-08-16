@@ -8,40 +8,41 @@
 </head>
 <body>
   <div id="topnav"></div>
-  <main>
-    <h1>Tailor CV to a job posting</h1>
-    <p class="subtitle">Quick check: paste a posting, see your match, and get a tailored CV — with or without creating a tracked application.</p>
-
-    <div class="card">
-      <label>Base CV</label>
-      <select id="cvSelect"></select>
-
-      <label>Role flavor (optional — adds a specialized skill on top of the general tailoring skills)</label>
-      <select id="flavor">
-        <option value="">General</option>
-        <option value="tech">Tech / Engineering / PM</option>
-        <option value="executive">Executive / C-suite</option>
-        <option value="academic">Academic</option>
-        <option value="creative">Creative / Design</option>
-        <option value="careerChange">Career change</option>
-      </select>
-
-      <label>Job posting link (optional)</label>
-      <div class="row">
-        <input type="text" id="jobPostLink" style="flex:1;" placeholder="https://..." />
-        <button type="button" class="btn secondary small" id="fetchJobPost">Fetch job post</button>
-      </div>
-      <span id="fetchStatus" class="muted"></span>
-      <label>Job posting text</label>
-      <textarea id="jobPost" rows="8" placeholder="Paste the full job description here, or fetch it from the link above"></textarea>
-
-      <div class="row" style="margin-top:12px;">
-        <button class="btn" id="runBtn">Analyze &amp; Tailor</button>
-        <span id="status" class="muted"></span>
-      </div>
+  <main style="max-width: none; padding: 24px 28px;">
+    <div class="row between">
+      <h1>Resume Tailoring Studio</h1>
+      <span class="pill" id="matchPill" style="display:none;"></span>
     </div>
-
-    <div id="result"></div>
+    <div class="studio-split">
+      <div class="card studio-pane">
+        <h2>Target Job Description</h2>
+        <label>Base CV</label>
+        <select id="cvSelect"></select>
+        <label>Role flavor</label>
+        <select id="flavor">
+          <option value="">General</option>
+          <option value="tech">Tech / Engineering / PM</option>
+          <option value="executive">Executive / C-suite</option>
+          <option value="academic">Academic</option>
+          <option value="creative">Creative / Design</option>
+          <option value="careerChange">Career change</option>
+        </select>
+        <label>Job posting link (optional)</label>
+        <div class="row">
+          <input type="text" id="jobPostLink" style="flex:1;" placeholder="https://..." />
+          <button type="button" class="btn secondary small" id="fetchJobPost">Fetch job post</button>
+        </div>
+        <span id="fetchStatus" class="muted"></span>
+        <label>Job posting text</label>
+        <textarea id="jobPost" rows="14" placeholder="Paste the full job description here, or fetch it from the link above" style="flex:1;"></textarea>
+        <div class="row" style="margin-top:12px;">
+          <button class="btn" id="runBtn">Analyze &amp; Tailor</button>
+          <span id="status" class="muted"></span>
+        </div>
+        <a class="muted" href="outreach.html" style="display:inline-block; margin-top:14px;">Need a cover letter or cold email instead? Open the Outreach Studio &rarr;</a>
+      </div>
+      <div class="studio-pane" id="result"></div>
+    </div>
   </main>
 
   <script type="module" src="js/tailor.js"></script>
