@@ -459,3 +459,19 @@ mark.kw-highlight { background: var(--advocate-success-soft); color: var(--advoc
 @media (max-width: 1000px) { .studio-split { grid-template-columns: 1fr; } }
 .studio-pane { display: flex; flex-direction: column; min-height: 60vh; }
 .studio-pane textarea { flex: 1; }
+
+.outreach-editor {
+  min-height: 400px; font-size: 15px; line-height: 1.7; outline: none;
+  padding: 4px 2px; white-space: pre-wrap;
+}
+.template-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-top: 8px;
+  cursor: pointer; background: var(--surface);
+}
+.template-row:hover { border-color: var(--advocate-primary-container); }
+
+@media print {
+  header.topbar, #kindTabs, .studio-split > div:first-child, .row.between .btn, .row.between .icon-btn { display: none !important; }
+  #editorPane { border: none; box-shadow: none; padding: 0; }
+}
