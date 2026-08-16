@@ -59,6 +59,13 @@ const DOC_TYPES = {
   },
 };
 
+const TONE_INSTRUCTIONS = {
+  professional: "Use a polished, professional tone.",
+  casual: "Use a warm, casual, conversational tone -- still competent, just less formal.",
+  confident: "Use a confident, assertive tone that leads with impact and results.",
+  referral: "Write as if referred by a mutual contact -- open by naming that connection as the reason you're reaching out.",
+};
+
 export const DOC_TYPE_KEYS = Object.keys(DOC_TYPES);
 
 router.get("/", async (c) =>
@@ -67,7 +74,7 @@ router.get("/", async (c) =>
 
 router.post("/", async (c) => {
   const applicationId = c.req.param("id");
-  const { type, extraNotes } = await c.req.json();
+  const { type, extraNotes, tone } = await c.req.json();
 
   const docType = DOC_TYPES[type];
   if (!docType) return c.json({ error: `Unknown document type "${type}"` }, 400);
@@ -91,7 +98,8 @@ router.post("/", async (c) => {
     `Location: ${app.location || "n/a"}\n\n` +
     `Job posting:\n"""\n${app.jobPostText || "(not provided)"}\n"""\n\n` +
     `Candidate's CV:\n"""\n${cv.content}\n"""\n` +
-    (extraNotes ? `\nAdditional context from the candidate: ${extraNotes}` : "");
+    (extraNotes ? `\nAdditional context from the candidate: ${extraNotes}` : "") +
+    (TONE_INSTRUCTIONS[tone] ? `\n${TONE_INSTRUCTIONS[tone]}` : "");
 
   const { text } = await runTask({ env: c.env, stable, prompt, maxTokens: 8000 });
 
