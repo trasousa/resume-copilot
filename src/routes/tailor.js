@@ -20,7 +20,8 @@ router.post("/quick", async (c) => {
   const stable =
     `You are a resume-tailoring copilot. Follow the skills below precisely, and ` +
     `never fabricate experience the candidate doesn't have -- only reorder, ` +
-    `reframe, and emphasize what's true.\n\n` +
+    `reframe, and emphasize what's true. Do not use emojis anywhere in your ` +
+    `response.\n\n` +
     buildSkillPrompt([
       ...SKILL_ROUTES.tailorToJobPost,
       ...(FLAVOR_SKILLS[flavor] || []),

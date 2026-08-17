@@ -550,3 +550,19 @@ mark.kw-highlight { background: var(--advocate-success-soft); color: var(--advoc
 }
 .outreach-callout:hover { background: var(--advocate-surface-container-high); }
 .outreach-callout strong { display: block; margin-top: 2px; }
+
+details.card summary { cursor: pointer; list-style: none; }
+details.card summary::-webkit-details-marker { display: none; }
+details.card summary::before {
+  content: "▸"; display: inline-block; margin-right: 8px; color: var(--ink-soft);
+  transition: transform 0.15s ease;
+}
+details.card[open] summary::before { transform: rotate(90deg); }
+
+.markdown-body { margin-top: 10px; }
+.markdown-body h2, .markdown-body h3 { margin: 14px 0 6px; }
+.markdown-body h2:first-child, .markdown-body h3:first-child { margin-top: 0; }
+.markdown-body p { margin: 0 0 10px; }
+.markdown-body ul, .markdown-body ol { margin: 0 0 10px; padding-left: 22px; }
+.markdown-body li { margin-bottom: 4px; }
+.markdown-body code { background: var(--advocate-surface-container-low); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }

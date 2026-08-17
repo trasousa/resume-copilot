@@ -1,5 +1,6 @@
 import { api, escapeHtml, renderNav, showError, checkApiKey, wireJobPostFetch, ensureCvsOrEmptyState } from "./app.js";
 import { mountCvDocument } from "./cv-doc.js";
+import { renderMarkdown } from "./markdown.js";
 
 renderNav("tailor.html");
 checkApiKey();
@@ -51,10 +52,10 @@ function render(data) {
     .replace(/```KEYWORDS\n[\s\S]*?\n```/, "")
     .trim();
   resultEl.innerHTML = `
-    <div class="card">
-      <h2>Match analysis</h2>
-      <div class="doc-content">${escapeHtml(analysisText)}</div>
-    </div>
+    <details class="card" open>
+      <summary><h2 style="display:inline;">Match analysis</h2></summary>
+      <div class="doc-content markdown-body">${renderMarkdown(analysisText)}</div>
+    </details>
     <div id="tailoredCvMount"></div>
   `;
 
