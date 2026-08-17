@@ -238,6 +238,7 @@ async function sendChat(message) {
     const decoder = new TextDecoder();
     let buffer = "";
     let reply = "";
+    let reasoningSoFar = "";
     let streamError = null;
 
     // SSE frames are separated by a blank line; a frame can straddle chunks.
@@ -255,7 +256,10 @@ async function sendChat(message) {
         if (!event || !dataLine) continue;
 
         const data = JSON.parse(dataLine);
-        if (event === "text") {
+        if (event === "reasoning") {
+          reasoningSoFar += data.text;
+          doc.assistant.setReasoningText(pending, reasoningSoFar);
+        } else if (event === "text") {
           reply += data.text;
           doc.assistant.setNoteText(pending, stripCvBlock(reply));
         } else if (event === "done") {

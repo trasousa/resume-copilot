@@ -27,6 +27,11 @@ export const DEFAULT_MODEL = "@cf/zai-org/glm-4.7-flash";
 
 const modelFor = (env) => env.WORKERS_AI_MODEL || DEFAULT_MODEL;
 
+// Separate config path so a faster non-reasoning model can be swapped in for
+// interactive chat without affecting the (typically slower, higher-quality)
+// tailoring model used by runTask.
+const chatModelFor = (env) => env.WORKERS_AI_CHAT_MODEL || env.WORKERS_AI_MODEL || DEFAULT_MODEL;
+
 function systemInstruction(stable, volatile) {
   return volatile ? `${stable}\n\n${volatile}` : stable;
 }
@@ -76,14 +81,17 @@ export async function runTask({ env, stable, volatile, prompt, maxTokens = 16000
  * env.AI.run(..., { stream: true }) returns a raw ReadableStream of
  * OpenAI-style `data: {...}` SSE chunks (confirmed empirically) -- parsed
  * here and re-emitted in this app's own event:text/done/error protocol,
- * same shape lib/anthropic.js and lib/gemini.js already produce. Only
- * `delta.content` is surfaced; `delta.reasoning`/`reasoning_content` (the
- * model's internal chain-of-thought) is intentionally never sent to the
- * client.
+ * same shape lib/anthropic.js and lib/gemini.js already produce.
+ * `delta.content` is surfaced as `event: text`. `delta.reasoning`/
+ * `reasoning_content` (the model's internal chain-of-thought) is now also
+ * forwarded to the client, as its own `event: reasoning` -- so the UI can
+ * show real progress during the (often slow) reasoning phase instead of a
+ * static placeholder. It is never appended to `reply`, which stays exactly
+ * the model's final answer.
  */
 export function runChatStream({ env, stable, volatile, messages, maxTokens = 8000, onDone }) {
   const encoder = new TextEncoder();
-  const model = modelFor(env);
+  const model = chatModelFor(env);
   const systemMessage = { role: "system", content: systemInstruction(stable, volatile) };
 
   return new ReadableStream({
@@ -123,6 +131,10 @@ export function runChatStream({ env, stable, volatile, messages, maxTokens = 800
 
             const chunk = JSON.parse(dataLine);
             const candidate = chunk.choices?.[0];
+            const reasoningDelta = candidate?.delta?.reasoning ?? candidate?.delta?.reasoning_content;
+            if (reasoningDelta) {
+              send("reasoning", { text: reasoningDelta });
+            }
             const delta = candidate?.delta?.content;
             if (delta) {
               reply += delta;

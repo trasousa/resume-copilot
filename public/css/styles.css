@@ -534,3 +534,8 @@ mark.kw-highlight { background: var(--advocate-success-soft); color: var(--advoc
 }
 .resume-view h3 { margin: 16px 0 8px; }
 .resume-view h3:first-of-type { margin-top: 4px; }
+
+.assistant-reasoning {
+  font-size: 12px; font-style: italic; color: var(--ink-soft); opacity: 0.8;
+  margin-bottom: 4px; white-space: pre-wrap; max-height: 60px; overflow-y: auto;
+}
