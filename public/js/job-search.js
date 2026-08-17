@@ -106,6 +106,7 @@ function render(data, cvId) {
       <h2>Results</h2>
       <div class="doc-content">${escapeHtml(analysisText)}</div>
     </div>
+    ${data.atsError ? `<div class="error-banner" style="background:var(--warn-soft); color:var(--warn);">ATS search unavailable this time (${escapeHtml(data.atsError)}) -- showing web-search results only.</div>` : ""}
     ${
       jobs.length
         ? `<div class="job-grid">${jobs
@@ -118,6 +119,7 @@ function render(data, cvId) {
                 <p class="muted" style="margin:0;">${escapeHtml(j.company)}</p>
               </div>
               ${j.matchScore != null ? `<span class="match-badge ${j.matchScore >= 80 ? "high" : j.matchScore >= 50 ? "mid" : "low"}">${j.matchScore}% MATCH</span>` : ""}
+              ${j.source === "ats" ? `<span class="pill muted" title="Found via direct ATS scraping, not web search">ATS listing</span>` : ""}
             </div>
             <p class="muted" style="margin:10px 0;">${icon("mapPin")} ${escapeHtml(j.location || "")} ${j.compEstimate ? `&nbsp;${icon("dollar")} ${escapeHtml(j.compEstimate)}` : ""}</p>
             ${j.fitNote ? `<p style="font-size:13.5px;">${escapeHtml(j.fitNote)}</p>` : ""}

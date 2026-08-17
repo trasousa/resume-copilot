@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS cvs (
   -- fonts are gone for good the moment a file is uploaded.
   original_key      TEXT,
   original_filename TEXT,
+  parsed_json       TEXT,
   created_at        TEXT NOT NULL
 );
 

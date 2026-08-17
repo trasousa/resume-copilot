@@ -4,7 +4,7 @@ import { extractText } from "../lib/parse.js";
 import { putOriginal, deleteOriginal } from "../lib/r2.js";
 import { cvTextToDocxBuffer, docxFilename } from "../lib/docxOut.js";
 import { buildSkillPrompt, SKILL_ROUTES } from "../lib/skills.js";
-import { runChatStream } from "../lib/llm.js";
+import { runChatStream, runTask } from "../lib/llm.js";
 
 const router = new Hono();
 
@@ -81,6 +81,41 @@ router.post("/upload", async (c) => {
     createdAt: new Date().toISOString(),
   });
   return c.json(cv, 201);
+});
+
+router.post("/:id/parse", async (c) => {
+  const id = c.req.param("id");
+  const cv = await db.getCv(c.env.DB, id);
+  if (!cv) return c.json({ error: "CV not found" }, 404);
+
+  const stable =
+    `You extract structured data from resumes. Return ONLY the requested ` +
+    `JSON -- no commentary, no markdown fencing outside the one code block ` +
+    `asked for. Never invent information that isn't in the source text; use ` +
+    `an empty string or empty array for anything you can't find.`;
+
+  const prompt =
+    `Resume text:\n"""\n${cv.content}\n"""\n\n` +
+    `Extract this exact JSON shape, inside a fenced block starting with ` +
+    `\`\`\`JSON and ending with \`\`\`:\n` +
+    `{"name": string, "title": string, "email": string, "phone": string, ` +
+    `"location": string, "links": string[], "summary": string, ` +
+    `"experience": [{"role": string, "company": string, "dates": string, ` +
+    `"bullets": string[]}], "education": [{"degree": string, "school": ` +
+    `string, "dates": string}], "skills": string[]}`;
+
+  const { text } = await runTask({ env: c.env, stable, prompt, maxTokens: 4000 });
+
+  let parsedJson;
+  try {
+    parsedJson = JSON.parse(text.match(/```JSON\n([\s\S]*?)\n```/)?.[1] || "{}");
+  } catch {
+    parsedJson = null;
+  }
+  if (!parsedJson) return c.json({ error: "Couldn't parse the resume into structured fields. Try again, or continue without it." }, 502);
+
+  await db.updateCvParsedJson(c.env.DB, id, parsedJson);
+  return c.json({ ...cv, parsedJson });
 });
 
 router.patch("/:id/master", async (c) => {

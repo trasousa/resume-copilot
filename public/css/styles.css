@@ -1,22 +1,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
 
 :root {
-  --advocate-primary: #0050cb;
-  --advocate-primary-container: #0066ff;
-  --advocate-secondary: #4b41e1;
-  --advocate-success: #006645;
-  --advocate-success-soft: #e1ffec;
-  --advocate-warn: #a35a1e;
-  --advocate-warn-soft: #fbe9d3;
-  --advocate-danger: #ba1a1a;
-  --advocate-danger-soft: #ffdad6;
-  --advocate-surface: #f8f9ff;
-  --advocate-surface-container: #e5eeff;
-  --advocate-surface-container-low: #eff4ff;
-  --advocate-surface-container-lowest: #ffffff;
-  --advocate-on-surface: #0b1c30;
-  --advocate-on-surface-variant: #424656;
-  --advocate-outline-variant: #c2c6d8;
+  /* Deep teal + coral palette: calm, focused, distinct brand identity */
+  --advocate-primary: #1D4E4B;
+  --advocate-primary-container: #D7E8E5;
+  --advocate-secondary: #E8543D;
+  --advocate-success: #2F9E5C;
+  --advocate-success-soft: #E1F5E9;
+  --advocate-warn: #C98A1D;
+  --advocate-warn-soft: #FBECD3;
+  --advocate-danger: #C1392B;
+  --advocate-danger-soft: #F8DFDB;
+  --advocate-surface: #F6F7F6;
+  --advocate-surface-container: #EAEDEC;
+  --advocate-surface-container-low: #EFF1F0;
+  --advocate-surface-container-lowest: #FFFFFF;
+  --advocate-surface-container-high: #DEE3E1;
+  --advocate-on-surface: #142524;
+  --advocate-on-surface-variant: #4B5B59;
+  --advocate-outline-variant: #C7D0CE;
 }
 
 :root {
@@ -26,7 +28,7 @@
   --ink: var(--advocate-on-surface);
   --ink-soft: var(--advocate-on-surface-variant);
   --accent: var(--advocate-secondary);
-  --accent-soft: #eeecff;
+  --accent-soft: #FCE4E0;
   --warn: var(--advocate-warn);
   --warn-soft: var(--advocate-warn-soft);
   --danger: var(--advocate-danger);
@@ -395,8 +397,8 @@ dialog .card { box-shadow: none; border: none; margin: 0; }
   background: var(--advocate-surface-container); color: var(--advocate-on-surface-variant);
 }
 .status-chip.saved     { background: var(--advocate-surface-container); color: var(--advocate-on-surface-variant); }
-.status-chip.applied   { background: #dae1ff; color: var(--advocate-primary); }
-.status-chip.screening { background: #dae1ff; color: var(--advocate-primary); }
+.status-chip.applied   { background: var(--advocate-primary-container); color: var(--advocate-primary); }
+.status-chip.screening { background: var(--advocate-primary-container); color: var(--advocate-primary); }
 .status-chip.interview { background: var(--advocate-warn-soft); color: var(--advocate-warn); }
 .status-chip.offer     { background: var(--advocate-success-soft); color: var(--advocate-success); }
 .status-chip.rejected,
@@ -408,7 +410,7 @@ dialog .card { box-shadow: none; border: none; margin: 0; }
   font-size: 12px; font-weight: 700;
 }
 .match-badge.high { background: var(--advocate-success-soft); color: var(--advocate-success); }
-.match-badge.mid  { background: #dae1ff; color: var(--advocate-primary); }
+.match-badge.mid  { background: var(--advocate-primary-container); color: var(--advocate-primary); }
 .match-badge.low  { background: var(--danger-soft); color: var(--danger); }
 
 .stat-tile {
@@ -513,3 +515,22 @@ mark.kw-highlight { background: var(--advocate-success-soft); color: var(--advoc
   header.topbar, #outreachMain #kindTabs, #outreachMain .studio-split > div:first-child, #outreachMain .row.between .btn, #outreachMain .row.between .icon-btn { display: none !important; }
   #editorPane { border: none; box-shadow: none; padding: 0; }
 }
+
+.avatar-menu {
+  position: absolute; top: 44px; right: 0; z-index: 20;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow); min-width: 190px; padding: 6px; flex-direction: column; gap: 2px;
+}
+.avatar-menu a, .avatar-menu button {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px;
+  text-decoration: none; color: var(--ink); font-size: 13.5px; font-weight: 500;
+  background: none; border: none; text-align: left; cursor: pointer; font-family: inherit;
+}
+.avatar-menu a:hover, .avatar-menu button:hover { background: var(--advocate-surface-container-low); }
+
+.resume-view {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px; max-height: 420px; overflow-y: auto;
+}
+.resume-view h3 { margin: 16px 0 8px; }
+.resume-view h3:first-of-type { margin-top: 4px; }

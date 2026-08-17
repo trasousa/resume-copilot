@@ -25,6 +25,7 @@ const cvFromRow = (r) =>
     sourceFile: r.source_file ?? undefined,
     originalKey: r.original_key ?? null,
     originalFilename: r.original_filename ?? null,
+    parsedJson: r.parsed_json ? JSON.parse(r.parsed_json) : null,
     createdAt: r.created_at,
   };
 
@@ -92,8 +93,8 @@ export async function createCv(db, cv) {
       .prepare(
         `INSERT INTO cvs
            (id, label, content, is_master, parent_id, source_file,
-            original_key, original_filename, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            original_key, original_filename, parsed_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         cv.id,
@@ -104,11 +105,20 @@ export async function createCv(db, cv) {
         cv.sourceFile ?? null,
         cv.originalKey ?? null,
         cv.originalFilename ?? null,
+        cv.parsedJson ? JSON.stringify(cv.parsedJson) : null,
         cv.createdAt
       )
   );
   await db.batch(stmts);
   return cv;
+}
+
+export async function updateCvParsedJson(db, id, parsedJson) {
+  await db
+    .prepare("UPDATE cvs SET parsed_json = ? WHERE id = ?")
+    .bind(JSON.stringify(parsedJson), id)
+    .run();
+  return getCv(db, id);
 }
 
 export async function setMasterCv(db, id) {
@@ -442,4 +452,30 @@ export async function addTokenUsage(db, day, tokens) {
     )
     .bind(day, tokens)
     .run();
+}
+
+// --- Account deletion --------------------------------------------------------
+//
+// This app has no per-user data model (every table is globally shared once
+// past Cloudflare Access) -- see the plan's Global Constraints. "Delete my
+// account" therefore means "wipe everything," the same scope db:reset:local
+// already covers for local dev, just against the live database and also
+// clearing R2 originals (handled by the route layer, which owns the R2
+// binding -- this module never touches R2).
+export async function deleteAllData(db) {
+  const { results } = await db.prepare("SELECT id FROM cvs").all();
+  const cvIds = results.map((r) => r.id);
+
+  await db.batch([
+    db.prepare("DELETE FROM chat_messages"),
+    db.prepare("DELETE FROM documents"),
+    db.prepare("DELETE FROM activity_events"),
+    db.prepare("DELETE FROM templates"),
+    db.prepare("DELETE FROM applications"),
+    db.prepare("DELETE FROM cvs"),
+    db.prepare("DELETE FROM profile"),
+    db.prepare("DELETE FROM token_usage"),
+  ]);
+
+  return { cvIds };
 }

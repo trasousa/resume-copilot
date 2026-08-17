@@ -1,5 +1,6 @@
 import { api, escapeHtml, renderNav, showError } from "./app.js";
 import { icon } from "./icons.js";
+import { renderResumeView } from "./resume-view.js";
 
 renderNav("profile.html");
 
@@ -42,8 +43,46 @@ function renderOnboarding() {
   else renderStep3();
 }
 
+async function parseAndPreview(cvId) {
+  const status = document.getElementById("uploadStatus");
+  if (status) status.innerHTML = `<span class="spinner"></span> reading your resume…`;
+  document.getElementById("stepBody").innerHTML = `<p class="muted"><span class="spinner"></span> Parsing your resume…</p>`;
+  let parsedJson = null;
+  try {
+    const result = await api(`/cvs/${cvId}/parse`, { method: "POST" });
+    parsedJson = result.parsedJson;
+  } catch {
+    // Parsing is a nice-to-have preview, not a hard requirement -- fall
+    // through to manual continue below even if it failed.
+  }
+
+  document.getElementById("stepBody").innerHTML = `<div id="resumePreview"></div>`;
+  let renderFailed = false;
+  if (parsedJson) {
+    try {
+      renderResumeView(document.getElementById("resumePreview"), parsedJson);
+    } catch {
+      // A malformed parsed-resume shape (e.g. non-string link/bullet) must
+      // not strand the user mid-onboarding -- degrade to the same fallback
+      // message used when there's no parsedJson at all.
+      renderFailed = true;
+    }
+  }
+  if (!parsedJson || renderFailed) {
+    document.getElementById("resumePreview").innerHTML =
+      `<p class="muted">We saved your resume, but couldn't generate a structured preview. You can still continue.</p>`;
+  }
+
+  const footer = document.getElementById("wizardFooter");
+  const cont = document.createElement("button");
+  cont.className = "btn";
+  cont.textContent = "Looks good — continue";
+  cont.onclick = () => { step = 2; renderOnboarding(); };
+  footer.insertBefore(cont, document.getElementById("skipBtn"));
+}
+
 function renderStep1() {
-  document.getElementById("stepTitle").textContent = "Welcome to Advocate. Let's build your profile.";
+  document.getElementById("stepTitle").textContent = "Welcome to Resume Copilot. Let's build your profile.";
   document.getElementById("stepSubtitle").textContent = "We'll use this information to tailor your resume and find the perfect match.";
   document.getElementById("stepBody").innerHTML = `
     <div class="dropzone">
@@ -71,9 +110,8 @@ function renderStep1() {
       const form = new FormData();
       form.append("file", file);
       form.append("isMaster", "true");
-      await api("/cvs/upload", { method: "POST", body: form });
-      step = 2;
-      renderOnboarding();
+      const cv = await api("/cvs/upload", { method: "POST", body: form });
+      await parseAndPreview(cv.id);
     } catch (err) {
       status.textContent = "";
       showError(main, err);
@@ -84,9 +122,8 @@ function renderStep1() {
     const content = prompt("Paste your resume text (you can format/improve it later in CV Store):");
     if (!content?.trim()) return;
     try {
-      await api("/cvs", { method: "POST", body: { label: "My resume", content, isMaster: true } });
-      step = 2;
-      renderOnboarding();
+      const cv = await api("/cvs", { method: "POST", body: { label: "My resume", content, isMaster: true } });
+      await parseAndPreview(cv.id);
     } catch (err) {
       showError(main, err);
     }
@@ -165,7 +202,13 @@ async function renderSettled(cvs) {
         <div class="row" style="margin-top: 12px;"><button class="btn" id="saveProfileBtn">Save</button><span id="saveStatus" class="muted"></span></div>
       </div>
     </div>
-    <div class="card"><button class="btn secondary" id="logoutBtn">Log out</button></div>
+    <div class="card" style="border-color: var(--danger);">
+      <h2 style="color: var(--danger);">Danger zone</h2>
+      <p class="muted">This deletes ALL data in this instance — every resume, application, generated document, and preference, for everyone with access. It cannot be undone.</p>
+      <label>Type DELETE to confirm</label>
+      <input type="text" id="deleteConfirmInput" placeholder="DELETE" />
+      <button class="btn danger" id="deleteAccountBtn" style="margin-top:12px;" disabled>Delete my account</button>
+    </div>
   `;
 
   document.getElementById("saveProfileBtn").onclick = async () => {
@@ -190,7 +233,22 @@ async function renderSettled(cvs) {
       showError(main, err);
     }
   };
-  document.getElementById("logoutBtn").onclick = () => (location.href = "/cdn-cgi/access/logout");
+
+  const deleteInput = document.getElementById("deleteConfirmInput");
+  const deleteBtn = document.getElementById("deleteAccountBtn");
+  deleteInput.oninput = () => { deleteBtn.disabled = deleteInput.value !== "DELETE"; };
+  deleteBtn.onclick = async () => {
+    deleteBtn.disabled = true;
+    deleteBtn.textContent = "Deleting…";
+    try {
+      await api("/account", { method: "DELETE", body: { confirm: "DELETE" } });
+      location.href = "/cdn-cgi/access/logout";
+    } catch (err) {
+      deleteBtn.disabled = false;
+      deleteBtn.textContent = "Delete my account";
+      showError(main, err);
+    }
+  };
 }
 
 init();
