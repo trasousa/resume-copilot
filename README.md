@@ -1,6 +1,6 @@
 # Resume Copilot
 
-A small full-stack app that ties Cloudflare Workers AI + a set of resume/career skills together into one workflow: paste a job post and get a tailored CV, optimize your CV interactively, search the live web for roles that fit you, and track every application through its stages -- generating cover letters, cold emails, interview prep, and salary negotiation briefs along the way.
+A small full-stack app that ties Cloudflare Workers AI + a set of resume/career skills together into one workflow: paste a job post and get a tailored CV, optimize your CV interactively, track ATS job postings from companies you choose, and track every application through its stages -- generating cover letters, cold emails, interview prep, and salary negotiation briefs along the way.
 
 Runs on **Cloudflare Workers**: one Worker serves the static frontend and the API, with **D1** for structured data, **R2** for original CV files, and **Cloudflare Access (Zero Trust)** gating the whole thing at the edge.
 
@@ -43,7 +43,7 @@ CI (`.github/workflows/ci.yml`) runs on every PR and push to `dev`/`main`:
 ## What's here
 
 - **Worker** (`src/`): [Hono](https://hono.dev) routes calling Cloudflare Workers AI with the relevant skill's `SKILL.md` injected as the system prompt. Routes import from `src/lib/llm.js`, which calls `src/lib/workersai.js` -- see "LLM provider" below.
-- **Frontend** (`public/`): plain HTML/CSS/JS, no build step. Four pages -- **Tracker** (kanban by stage), **CV Store** (upload/paste CVs, mark a master, improve one via streaming chat), **Tailor** (quick job-post-vs-CV check), and **Job Search** (live web search ranked by fit and pay).
+- **Frontend** (`public/`): plain HTML/CSS/JS, no build step. Four pages -- **Tracker** (kanban by stage), **CV Store** (upload/paste CVs, mark a master, improve one via streaming chat), **Tailor** (quick job-post-vs-CV check), and **Job Search** (scrapes ATS career pages you configure, ranked by fit and pay).
 - **Skills** (`skills/`): all 22 skills from [Paramchoudhary/ResumeSkills](https://github.com/Paramchoudhary/ResumeSkills), plus two written for this app -- `job-search-matcher` and `application-tracker`. `src/lib/skills.js` holds the routing table (`SKILL_ROUTES`) mapping each task to the skills that apply.
 - **Database** (`schema.sql`): D1. Eight tables -- `cvs`, `applications`, `documents`, `activity_events`, `templates`, `chat_messages`, `profile`, `token_usage`.
 - **Original files** (`src/lib/r2.js`): R2. As-uploaded CV bytes, keyed by CV id.
@@ -54,7 +54,7 @@ Because Workers have no filesystem, `scripts/build-skills.mjs` inlines the skill
 
 1. **CV Store** -- your CV library. Upload or paste CVs, mark one as master, and improve any of them through a streaming chat that asks clarifying questions before proposing a full rewrite.
 2. **Tailor** -- paste a job posting, pick a base CV and optionally a role "flavor" (tech/executive/academic/creative/career-change), and get a match analysis plus a tailored CV.
-3. **Job Search** -- live web search for openings matching your CV and a location, ranked by fit and estimated compensation. Every result is backed by a real search hit; sources are shown so you can check.
+3. **Job Search** -- scrapes the ATS career pages you've configured (see "Job search: ATS watchlist" below) for openings matching your CV, ranked by fit and estimated compensation.
 4. **Tracker** -- applications grouped by stage (Saved → Applied → Screening → Interview → Offer, plus Rejected/Withdrawn), with stalled ones flagged. Click into one to tailor a CV to that posting, or generate a cover letter, cold email, interview prep pack, negotiation brief, application-form answers, reference list, offer comparison, LinkedIn tune-up, or portfolio case study.
 
 ## Original files
@@ -73,9 +73,9 @@ The bucket name (`resume-copilot-originals`) and binding (`ORIGINALS`) are alrea
 
 This app uses [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) exclusively -- no API key needed, since it authenticates via the `ai` binding in `wrangler.jsonc` alone. `WORKERS_AI_MODEL`/`WORKERS_AI_CHAT_MODEL` in `wrangler.jsonc`'s `vars` block select which `@cf/...` model each flow uses: `WORKERS_AI_MODEL` for one-shot tasks (tailoring, document generation), `WORKERS_AI_CHAT_MODEL` for the interactive CV-improve chat.
 
-## Job search: ATS watchlist (optional)
+## Job search: ATS watchlist (required for results)
 
-Job Search's primary source is always LLM-driven web search (above). Optionally, it can also pull from [Apify](https://apify.com)'s `fantastic-jobs/jobs-scraper` actor, which reads ATS platforms' own public APIs (Greenhouse, Lever, Ashby, Workday, and others) directly rather than relying on an LLM to find and interpret search results. This is **not a live search** -- the actor takes an explicit list of company career-page URLs (`startUrls`) and scrapes exactly those companies, so it only ever returns openings from companies you've told it to track. To enable it: get a token at [console.apify.com/settings/integrations](https://console.apify.com/settings/integrations) and set `APIFY_API_TOKEN` (`npx wrangler secret put APIFY_API_TOKEN`, or `APIFY_API_TOKEN` in `.dev.vars` locally), then set `APIFY_WATCHLIST` to a JSON array of `{"url","company"}` pairs -- one per company you want tracked, e.g. `[{"url":"https://boards.greenhouse.io/stripe","company":"Stripe"}]`. Building that list means finding each company's own Greenhouse/Lever/Ashby/Workday careers page URL and adding it yourself; there's no way to discover new companies through this source, only to track ones you already picked. Leaving `APIFY_API_TOKEN` or `APIFY_WATCHLIST` unset skips this source entirely -- job search still works with web search alone, and results merge into the same list (jobs found via the ATS source are tagged with an "ATS listing" pill in the UI).
+Job Search's only source is [Apify](https://apify.com)'s `fantastic-jobs/jobs-scraper` actor, which reads ATS platforms' own public APIs (Greenhouse, Lever, Ashby, Workday, and others) directly for the companies you tell it to track. This is **not a live search** -- the actor takes an explicit list of company career-page URLs (`startUrls`) and scrapes exactly those companies, so it only ever returns openings from companies you've told it to track; there's no way to discover new companies through this source. To use Job Search at all: get a token at [console.apify.com/settings/integrations](https://console.apify.com/settings/integrations) and set `APIFY_API_TOKEN` (`npx wrangler secret put APIFY_API_TOKEN`, or `APIFY_API_TOKEN` in `.dev.vars` locally), then set `APIFY_WATCHLIST` to a JSON array of `{"url","company"}` pairs -- one per company you want tracked, e.g. `[{"url":"https://boards.greenhouse.io/stripe","company":"Stripe"}]`. Building that list means finding each company's own Greenhouse/Lever/Ashby/Workday careers page URL and adding it yourself. Leaving `APIFY_API_TOKEN` or `APIFY_WATCHLIST` unset means Job Search returns no results.
 
 ## Deploy
 
@@ -156,7 +156,7 @@ To sign out, the nav's **Log out** button sends the browser to `/cdn-cgi/access/
 - **PDF upload isn't supported** -- only `.docx`, `.txt`, `.md` (10 MB cap). Convert PDFs first.
 - **CV → .docx export** uses a lightweight markdown-ish renderer (`src/lib/docxOut.js`), not a template engine.
 - **Single-tenant.** One allow-list, one shared dataset, no per-user accounts.
-- **Job search depends on live web search** and can come up thin for a niche role/location combo -- the skill is instructed to say so rather than pad the list.
+- **Job search only covers the companies in your `APIFY_WATCHLIST`** -- it can't discover new companies on its own, so results are limited to whatever ATS career pages you've configured.
 
 ## Next steps
 
