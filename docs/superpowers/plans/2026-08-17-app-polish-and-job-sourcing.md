@@ -829,8 +829,11 @@ git commit -m "feat: add a delete-account procedure with typed confirmation"
 - Modify: `.env.example`
 - Modify: `README.md`
 
+**Corrected actor contract (verified against the actor's actual documented input/output — this supersedes an earlier draft of this task that assumed a free-text search API):** `fantastic-jobs/jobs-scraper` does NOT take a `search`/`location` query. Its input is `startUrls`: an explicit list of company career-page URLs on supported ATS platforms (e.g. `https://boards.greenhouse.io/{company}`, `https://jobs.lever.co/{company}`, `https://jobs.ashbyhq.com/{company}`, `https://{company}.wd5.myworkdayjobs.com/...`). It scrapes exactly those companies' listings and returns one object per job: `{title, description, locations: string[], url, date_posted}` — notably **no `company` or `salary` field**. This makes the integration a curated watchlist ("track these specific companies' openings"), not a dynamic search — company name has to come from the caller's own `startUrls` list (paired alongside each URL), not from the actor's output.
+
 **Interfaces:**
-- New: `runApifyAtsSearch({ apiToken, query, location }) -> Promise<{ jobs: Array<{title, company, location, url, compEstimate, source: "ats"}>, error: string|null }>` — calls Apify's `fantastic-jobs/jobs-scraper` actor via its synchronous "run and get dataset items" REST endpoint. Never throws on a normal API failure (missing token, actor error, timeout) -- returns `{ jobs: [], error: "<reason>" }` instead, since this is a secondary, best-effort source and a failure here must not break the primary LLM search.
+- New: `runApifyAtsSearch({ apiToken, watchlist }) -> Promise<{ jobs: Array<{title, company, location, url, compEstimate, source: "ats"}>, error: string|null }>`, where `watchlist` is `Array<{url: string, company: string}>`. Calls the actor via its synchronous "run and get dataset items" REST endpoint with `{ startUrls: watchlist.map(w => ({url: w.url})) }`. Company name for each returned job is resolved by matching the job's `url` against the watchlist entry it came from (prefix match), not read from the actor's output (which doesn't have one). Never throws on a normal API failure (missing token, empty watchlist, actor error, timeout) -- returns `{ jobs: [], error: "<reason>" }` instead (or `{ jobs: [], error: null }` for the "not configured" case), since this is a secondary, best-effort source and a failure here must not break the primary LLM search. `compEstimate` is always `""` — the actor doesn't return compensation data.
+- New env var `APIFY_WATCHLIST`: a JSON-encoded array of `{"url": "...", "company": "..."}` objects, parsed once in `src/routes/jobsearch.js`. This is a personal curation list (which companies' career pages to track) — it lives in an env var, not hardcoded in source, so it's editable per-deployment without a code change. An empty/unset value means the ATS source contributes nothing (same graceful no-op as a missing `APIFY_API_TOKEN`).
 - `POST /api/jobsearch/search`'s response gains one field: `atsError: string|null` (surfaced only if the Apify call failed, so the frontend can show a small "ATS search unavailable" note rather than silently dropping results). The existing `text`/`sources` fields are unchanged in shape; jobs from both sources are merged into the SAME `\`\`\`JOBS` block already embedded in `text` (deduplicated by URL, ATS-sourced jobs tagged with `"source": "ats"` in that JSON, web-search-sourced jobs keep their existing implicit web-search origin -- the frontend distinguishes them by checking for that field).
 
 - [ ] **Step 1: Write the Apify client**
@@ -846,19 +849,24 @@ git commit -m "feat: add a delete-account procedure with typed confirmation"
 // $1 per 1,000 job results; Apify's $5/month free platform credits cover
 // roughly 5,000 results/month, which is generous for personal-use search
 // volume.
+//
+// The actor takes `startUrls` -- explicit company career-page URLs -- not
+// a free-text search query, and its output has no `company`/`salary`
+// field. Company name comes from matching each returned job's url against
+// the watchlist entry it was scraped from.
 
 const ACTOR = "fantastic-jobs~jobs-scraper";
 const RUN_SYNC_URL = `https://api.apify.com/v2/acts/${ACTOR}/run-sync-get-dataset-items`;
 
-export async function runApifyAtsSearch({ apiToken, query, location }) {
-  if (!apiToken) return { jobs: [], error: null }; // Not configured -- silently skip, not an error state.
+export async function runApifyAtsSearch({ apiToken, watchlist }) {
+  if (!apiToken || !watchlist?.length) return { jobs: [], error: null }; // Not configured -- silently skip, not an error state.
 
   let res;
   try {
     res = await fetch(`${RUN_SYNC_URL}?token=${encodeURIComponent(apiToken)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ search: query, location: location || undefined }),
+      body: JSON.stringify({ startUrls: watchlist.map((w) => ({ url: w.url })) }),
       // Apify's own run can take a while; bound it so a slow/stuck scrape
       // never holds up the whole job-search request past a sane wait.
       signal: AbortSignal.timeout(25000),
@@ -880,15 +888,20 @@ export async function runApifyAtsSearch({ apiToken, query, location }) {
 
   if (!Array.isArray(items)) return { jobs: [], error: null };
 
+  // Resolve each job's company by which watchlist URL prefixes its own
+  // url -- e.g. a job at "https://boards.greenhouse.io/stripe/jobs/123"
+  // matches the watchlist entry "https://boards.greenhouse.io/stripe".
+  const companyFor = (jobUrl) => watchlist.find((w) => jobUrl?.startsWith(w.url))?.company || "";
+
   const jobs = items
     .filter((item) => item?.url && item?.title)
-    .slice(0, 20) // Cap per-search cost/volume -- this is a supplementary source, not the primary one.
+    .slice(0, 40) // Cap per-search cost/volume -- this is a supplementary source, not the primary one.
     .map((item) => ({
       title: String(item.title),
-      company: String(item.company_name || item.company || ""),
-      location: String(item.location || item.locations?.[0] || ""),
+      company: companyFor(item.url),
+      location: String(item.locations?.[0] || ""),
       url: String(item.url),
-      compEstimate: String(item.salary || ""),
+      compEstimate: "",
       source: "ats",
     }));
 
@@ -901,6 +914,22 @@ export async function runApifyAtsSearch({ apiToken, query, location }) {
 In `src/routes/jobsearch.js`, add the import:
 ```js
 import { runApifyAtsSearch } from "../lib/apify.js";
+```
+
+Add a watchlist parser near the top of the file (module scope, parsed once, not per-request):
+```js
+// APIFY_WATCHLIST is a JSON array of {"url","company"} objects -- which
+// companies' ATS career pages to scrape. A personal curation list, kept in
+// an env var (not hardcoded) so it's editable per-deployment. Malformed or
+// unset -> empty list -> the ATS source silently contributes nothing.
+function parseWatchlist(env) {
+  try {
+    const parsed = JSON.parse(env.APIFY_WATCHLIST || "[]");
+    return Array.isArray(parsed) ? parsed.filter((w) => w?.url && w?.company) : [];
+  } catch {
+    return [];
+  }
+}
 ```
 
 Change `router.post("/search", ...)` to run both sources in parallel and merge. Find the existing line:
@@ -921,8 +950,7 @@ Replace it with:
     runWebSearchTask({ env: c.env, stable, prompt, location: { city, region, country } }),
     runApifyAtsSearch({
       apiToken: c.env.APIFY_API_TOKEN,
-      query: cv.content.slice(0, 200), // First ~200 chars of the CV as a rough role/title query.
-      location: locationLine,
+      watchlist: parseWatchlist(c.env),
     }),
   ]);
 
@@ -966,13 +994,22 @@ In `.env.example`, add:
 # directly). Get a token at https://console.apify.com/settings/integrations.
 # Job search works without this -- it just falls back to LLM web search only.
 APIFY_API_TOKEN=
+
+# Optional, only used if APIFY_API_TOKEN is set -- a JSON array of company
+# career pages to scrape via the actor above, e.g.:
+# [{"url":"https://boards.greenhouse.io/yourcompany","company":"Your Company"}]
+# The actor scrapes specific companies' ATS career pages (Greenhouse, Lever,
+# Ashby, Workday, etc.) -- it does not take a free-text search query, so this
+# list is how you tell it which companies to track. Leave empty/unset to
+# skip the ATS source entirely (same as leaving APIFY_API_TOKEN unset).
+APIFY_WATCHLIST=[]
 ```
 
-In `README.md`, find the environment variables / secrets section (search for where `ANTHROPIC_API_KEY` or `GOOGLE_API_KEY` is documented) and add a parallel entry for `APIFY_API_TOKEN`, describing it as optional and what it unlocks (a paragraph, not just a bare variable name -- match the style already used for the other documented secrets in that section).
+In `README.md`, find the environment variables / secrets section (search for where `ANTHROPIC_API_KEY` or `GOOGLE_API_KEY` is documented) and add a parallel entry covering both `APIFY_API_TOKEN` and `APIFY_WATCHLIST` together (a paragraph, not just bare variable names -- match the style already used for the other documented secrets in that section). Explicitly explain that this is a curated company watchlist, not a live search — the user needs to populate `APIFY_WATCHLIST` with real career-page URLs for companies they want tracked (e.g. by finding a company's Greenhouse/Lever/Ashby/Workday careers page URL and adding it to the list) for this source to return anything.
 
 - [ ] **Step 5: Verify**
 
-Run: `npm run lint`. Without an `APIFY_API_TOKEN` set, run a job search via `npm run dev` and confirm behavior is unchanged from before this task (LLM search only, no `atsError` shown since a missing token returns `{ jobs: [], error: null }` per Step 1's design, not an error state). If you have a real Apify API token available, set `APIFY_API_TOKEN` in `.dev.vars` and re-run a search; expected: some results tagged `"ATS listing"` in the UI, sourced from the Apify actor.
+Run: `npm run lint`. Without `APIFY_API_TOKEN`/`APIFY_WATCHLIST` set, run a job search via `npm run dev` and confirm behavior is unchanged from before this task (LLM search only, no `atsError` shown since a missing token or empty watchlist returns `{ jobs: [], error: null }` per Step 1's design, not an error state). If you have a real Apify API token available, set `APIFY_API_TOKEN` and a real `APIFY_WATCHLIST` (with at least one real, currently-live company career-page URL on Greenhouse/Lever/Ashby) in `.dev.vars`, and re-run a search; expected: some results tagged `"ATS listing"` in the UI, sourced from the Apify actor, with the correct company name attached (verifying the url-prefix-matching in `companyFor` actually works against real actor output, not just the happy-path shape).
 
 - [ ] **Step 6: Commit**
 
