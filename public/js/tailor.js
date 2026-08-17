@@ -47,6 +47,9 @@ document.getElementById("runBtn").onclick = async () => {
 };
 
 function render(data) {
+  document.getElementById("jdPane").open = false;
+  document.getElementById("studioSplit").classList.add("jd-collapsed");
+
   const analysisText = data.analysis
     .replace(/```CV\n[\s\S]*?\n```/, "")
     .replace(/```KEYWORDS\n[\s\S]*?\n```/, "")
@@ -56,7 +59,16 @@ function render(data) {
       <summary><h2 style="display:inline;">Match analysis</h2></summary>
       <div class="doc-content markdown-body">${renderMarkdown(analysisText)}</div>
     </details>
-    <div id="tailoredCvMount"></div>
+    <div class="compare-grid">
+      <div>
+        <h3 class="muted" style="margin-bottom:8px;">Current</h3>
+        <div id="originalCvMount"></div>
+      </div>
+      <div>
+        <h3 class="muted" style="margin-bottom:8px;">Tailored</h3>
+        <div id="tailoredCvMount"></div>
+      </div>
+    </div>
   `;
 
   if (!data.tailoredText) {
@@ -64,6 +76,17 @@ function render(data) {
       `<p class="muted">No structured tailored CV was returned — try again, or refine the job posting text.</p>`;
     return;
   }
+
+  api(`/cvs/${data.baseCvId}`)
+    .then((baseCv) => {
+      mountCvDocument(document.getElementById("originalCvMount"), {
+        content: baseCv.content,
+        editable: false,
+      });
+    })
+    .catch(() => {
+      document.getElementById("originalCvMount").innerHTML = `<p class="muted">Couldn't load the original CV for comparison.</p>`;
+    });
 
   const scoreMatch = data.analysis.match(/match\s*score[:\s]*[^\d]{0,10}(\d{1,3})/i);
   const pill = document.getElementById("matchPill");

@@ -14,9 +14,9 @@
       <h1>Resume Tailoring Studio</h1>
       <span class="pill" id="matchPill" style="display:none;"></span>
     </div>
-    <div class="studio-split">
-      <div class="card studio-pane">
-        <h2>Target Job Description</h2>
+    <div class="studio-split" id="studioSplit">
+      <details class="card studio-pane" id="jdPane" open>
+        <summary><h2 style="display:inline;">Target Job Description</h2></summary>
         <label>Base CV</label>
         <select id="cvSelect"></select>
         <label>Role flavor</label>
@@ -43,7 +43,7 @@
         <a class="outreach-callout" href="outreach.html">
           <span>Need a cover letter or cold email instead?<br><strong>Open the Outreach Studio →</strong></span>
         </a>
-      </div>
+      </details>
       <div class="studio-pane" id="result"></div>
     </div>
   </main>
