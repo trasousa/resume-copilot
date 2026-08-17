@@ -165,7 +165,6 @@ async function renderSettled(cvs) {
         <div class="row" style="margin-top: 12px;"><button class="btn" id="saveProfileBtn">Save</button><span id="saveStatus" class="muted"></span></div>
       </div>
     </div>
-    <div class="card"><button class="btn secondary" id="logoutBtn">Log out</button></div>
   `;
 
   document.getElementById("saveProfileBtn").onclick = async () => {
@@ -190,7 +189,6 @@ async function renderSettled(cvs) {
       showError(main, err);
     }
   };
-  document.getElementById("logoutBtn").onclick = () => (location.href = "/cdn-cgi/access/logout");
 }
 
 init();

@@ -515,3 +515,15 @@ mark.kw-highlight { background: var(--advocate-success-soft); color: var(--advoc
   header.topbar, #outreachMain #kindTabs, #outreachMain .studio-split > div:first-child, #outreachMain .row.between .btn, #outreachMain .row.between .icon-btn { display: none !important; }
   #editorPane { border: none; box-shadow: none; padding: 0; }
 }
+
+.avatar-menu {
+  position: absolute; top: 44px; right: 0; z-index: 20;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow); min-width: 190px; padding: 6px; flex-direction: column; gap: 2px;
+}
+.avatar-menu a, .avatar-menu button {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px;
+  text-decoration: none; color: var(--ink); font-size: 13.5px; font-weight: 500;
+  background: none; border: none; text-align: left; cursor: pointer; font-family: inherit;
+}
+.avatar-menu a:hover, .avatar-menu button:hover { background: var(--advocate-surface-container-low); }

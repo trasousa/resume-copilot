@@ -100,7 +100,6 @@ export function renderNav(active) {
     ["job-search.html", "Search", "search"],
     ["tailor.html", "Tailor", "edit"],
     ["index.html", "Applications", "list"],
-    ["profile.html", "Profile", "user"],
   ];
   const el = document.getElementById("topnav");
   if (!el) return;
@@ -115,24 +114,36 @@ export function renderNav(active) {
           )
           .join("")}
       </nav>
-      <div class="row" style="gap: 10px;">
+      <div class="row" style="gap: 10px; position: relative;">
         <a class="btn" href="index.html?new=1" id="topnavNewApp">${icon("plus")} New Application</a>
         <button class="icon-btn" title="Notifications" disabled>${icon("bell")}</button>
-        <a class="icon-btn" href="profile.html" title="Settings">${icon("gear")}</a>
-        <span class="avatar-circle" id="whoamiAvatar">?</span>
+        <button class="avatar-circle" id="avatarMenuBtn" title="Profile & Settings" style="border:none; cursor:pointer;">?</button>
+        <div class="avatar-menu" id="avatarMenu" style="display:none;">
+          <a href="profile.html">${icon("user")} Profile &amp; Settings</a>
+          <button type="button" id="navLogoutBtn">Log out</button>
+        </div>
       </div>
     </header>`;
 
-  document.getElementById("logoutBtn")?.addEventListener("click", () => {
+  const menuBtn = document.getElementById("avatarMenuBtn");
+  const menu = document.getElementById("avatarMenu");
+  menuBtn.onclick = (e) => {
+    e.stopPropagation();
+    menu.style.display = menu.style.display === "none" ? "flex" : "none";
+  };
+  document.addEventListener("click", () => { menu.style.display = "none"; });
+
+  document.getElementById("navLogoutBtn").onclick = () => {
     location.href = "/cdn-cgi/access/logout";
-  });
+  };
 
   fetch("/api/auth/me")
     .then((r) => r.json())
     .then(({ email }) => {
-      const avatar = document.getElementById("whoamiAvatar");
-      if (email && avatar) avatar.textContent = email[0].toUpperCase();
-      if (email && avatar) avatar.title = email;
+      if (email) {
+        menuBtn.textContent = email[0].toUpperCase();
+        menuBtn.title = email;
+      }
     })
     .catch(() => {});
 }
