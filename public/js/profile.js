@@ -43,7 +43,7 @@ function renderOnboarding() {
 }
 
 function renderStep1() {
-  document.getElementById("stepTitle").textContent = "Welcome to Advocate. Let's build your profile.";
+  document.getElementById("stepTitle").textContent = "Welcome to Resume Copilot. Let's build your profile.";
   document.getElementById("stepSubtitle").textContent = "We'll use this information to tailor your resume and find the perfect match.";
   document.getElementById("stepBody").innerHTML = `
     <div class="dropzone">

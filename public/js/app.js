@@ -106,7 +106,7 @@ export function renderNav(active) {
   if (!el) return;
   el.innerHTML = `
     <header class="topbar">
-      <a href="index.html" class="brand"><span class="brand-mark">A</span> Advocate</a>
+      <a href="index.html" class="brand"><span class="brand-mark">R</span> Resume Copilot</a>
       <nav class="tabs">
         ${links
           .map(
