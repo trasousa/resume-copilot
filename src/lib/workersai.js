@@ -19,9 +19,10 @@
 // `web_search`/`web_search_preview` tool type is rejected outright, and the
 // documented `web_search_options` param is silently a no-op -- the model
 // says outright it has no live search access). Job Search now relies
-// exclusively on the Apify ATS source (src/lib/apify.js) for listings --
-// Workers AI is only used to rank those real, already-found postings
-// against the candidate's CV, never to search the web itself.
+// exclusively on Arbeitnow's free public job board API
+// (src/lib/arbeitnow.js) for listings -- Workers AI is only used to rank
+// those real, already-found postings against the candidate's CV, never to
+// search the web itself.
 
 export const DEFAULT_MODEL = "@cf/zai-org/glm-4.7-flash";
 
