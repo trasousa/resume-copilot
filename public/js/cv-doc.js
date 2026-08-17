@@ -11,6 +11,7 @@
 // serialize back to markdown.
 
 import { escapeHtml } from "./app.js";
+import { renderMarkdown } from "./markdown.js";
 
 function renderDocHtml(text, highlightTerms = []) {
   const lines = (text || "").split("\n");
@@ -263,13 +264,25 @@ export function mountCvDocument(container, opts) {
             const log = container.querySelector("#assistantLog");
             const el = document.createElement("div");
             el.className = `assistant-note ${role}`;
-            el.textContent = text;
+            if (role === "assistant") el.innerHTML = renderMarkdown(text);
+            else el.textContent = text;
             log.appendChild(el);
             log.scrollTop = log.scrollHeight;
             return el;
           },
           setNoteText(el, text) {
-            el.textContent = text;
+            el.innerHTML = renderMarkdown(text);
+            const log = container.querySelector("#assistantLog");
+            log.scrollTop = log.scrollHeight;
+          },
+          setReasoningText(el, text) {
+            let reasoningEl = el.querySelector(".assistant-reasoning");
+            if (!reasoningEl) {
+              reasoningEl = document.createElement("div");
+              reasoningEl.className = "assistant-reasoning";
+              el.prepend(reasoningEl);
+            }
+            reasoningEl.textContent = text;
             const log = container.querySelector("#assistantLog");
             log.scrollTop = log.scrollHeight;
           },

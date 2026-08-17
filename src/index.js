@@ -60,26 +60,10 @@ app.route("/api/account", accountRouter);
 app.get("/api/skills", (c) => c.json(listSkills()));
 
 app.get("/api/health", (c) => {
-  const provider = (c.env.LLM_PROVIDER || "anthropic").toLowerCase();
-  // Workers AI authenticates via the native binding, tied to the Cloudflare
-  // account -- there's no API key/secret to check for it at all.
-  const keyByProvider = {
-    gemini: { apiKeyName: "GOOGLE_API_KEY", hasApiKey: !!c.env.GOOGLE_API_KEY },
-    workersai: { apiKeyName: null, hasApiKey: true },
-    anthropic: { apiKeyName: "ANTHROPIC_API_KEY", hasApiKey: !!c.env.ANTHROPIC_API_KEY },
-  };
-  const modelByProvider = {
-    gemini: c.env.GEMINI_MODEL || "gemini-2.5-flash",
-    workersai: c.env.WORKERS_AI_MODEL || "@cf/zai-org/glm-4.7-flash",
-    anthropic: c.env.ANTHROPIC_MODEL || "claude-opus-5",
-  };
-  const { apiKeyName, hasApiKey } = keyByProvider[provider] || keyByProvider.anthropic;
   return c.json({
     ok: true,
-    provider,
-    hasApiKey,
-    apiKeyName,
-    model: modelByProvider[provider] || modelByProvider.anthropic,
+    model: c.env.WORKERS_AI_MODEL || "@cf/zai-org/glm-4.7-flash",
+    chatModel: c.env.WORKERS_AI_CHAT_MODEL || c.env.WORKERS_AI_MODEL || "@cf/zai-org/glm-4.7-flash",
     authRequired: c.env.SKIP_AUTH !== "1",
   });
 });

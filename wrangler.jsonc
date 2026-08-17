@@ -56,9 +56,9 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ResumeAgent"] }],
 
   // Workers AI -- see src/lib/workersai.js and
-  // docs/superpowers/specs/2026-08-16-resume-agent-core-design.md for why
-  // (glm-4.7-flash, replacing Anthropic/Gemini as the default provider).
-  // Authenticates via this binding alone -- no API key/secret needed.
+  // docs/superpowers/specs/2026-08-16-resume-agent-core-design.md's "Model
+  // choice" paragraph for why (glm-4.7-flash). Authenticates via this
+  // binding alone -- no API key/secret needed.
   "ai": { "binding": "AI" },
 
   // CF_ACCESS_TEAM_DOMAIN / CF_ACCESS_AUD are not secrets -- they only
@@ -69,18 +69,14 @@
   // *.workers.dev). Until they're real, every request fails closed with a
   // 401, which is the correct default, not a bug.
   "vars": {
-    // "workersai" (default, cheapest, no secret needed), "anthropic", or
-    // "gemini" -- see src/lib/llm.js. Whichever is active, only that
-    // provider's API key (if it has one) needs to be set as a secret.
-    //
-    // Known gap: workersai has no live web search, so Job Search will error
-    // with a clear message telling you to switch LLM_PROVIDER to
-    // "anthropic" or "gemini" until Browser Rendering-based search lands
-    // (see the design spec's sub-project 5) -- see src/lib/workersai.js.
-    "LLM_PROVIDER": "workersai",
+    // Workers AI only -- see docs/superpowers/specs/2026-08-16-resume-agent-core-design.md's
+    // "Model choice" paragraph. No secret needed; auth is the AI binding
+    // above. WORKERS_AI_MODEL is for one-shot tasks (tailoring, document
+    // generation); WORKERS_AI_CHAT_MODEL is for the interactive CV-improve
+    // chat and can be set to a faster/non-reasoning model since chat
+    // latency matters more there than depth -- see src/lib/workersai.js.
     "WORKERS_AI_MODEL": "@cf/zai-org/glm-4.7-flash",
-    "ANTHROPIC_MODEL": "claude-sonnet-5",
-    "GEMINI_MODEL": "gemini-3.5-flash-lite",
+    "WORKERS_AI_CHAT_MODEL": "@cf/zai-org/glm-4.7-flash",
     "CF_ACCESS_TEAM_DOMAIN": "trasousa.cloudflareaccess.com",
     "CF_ACCESS_AUD": "a55647e511b1d3a8932fb682a628af9901b8eccf2befb5f02aee35779d437c78" // gitleaks:allow -- not a bearer credential, see comment above
   },
@@ -92,9 +88,8 @@
   // "Custom domain" and "Sign-in".
   "routes": [{ "pattern": "resume.btopencloud.com", "custom_domain": true }]
 
-  // Secrets are NOT set here -- they go in the encrypted store:
-  //   npx wrangler secret put ANTHROPIC_API_KEY
-  //   npx wrangler secret put GOOGLE_API_KEY   (only if LLM_PROVIDER is "gemini")
-  // For local dev, put the same key(s) in .dev.vars (gitignored). Also set
-  // SKIP_AUTH="1" there -- Access never runs in front of `wrangler dev`.
+  // No LLM secret to set -- Workers AI authenticates via the "ai" binding
+  // above alone, tied to the account this Worker deploys under. For local
+  // dev, set SKIP_AUTH="1" in .dev.vars (gitignored) -- Access never runs
+  // in front of `wrangler dev`.
 }

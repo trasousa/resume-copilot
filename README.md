@@ -1,6 +1,6 @@
 # Resume Copilot
 
-A small full-stack app that ties Claude + a set of resume/career skills together into one workflow: paste a job post and get a tailored CV, optimize your CV interactively, search the live web for roles that fit you, and track every application through its stages -- generating cover letters, cold emails, interview prep, and salary negotiation briefs along the way.
+A small full-stack app that ties Cloudflare Workers AI + a set of resume/career skills together into one workflow: paste a job post and get a tailored CV, optimize your CV interactively, track ATS job postings from companies you choose, and track every application through its stages -- generating cover letters, cold emails, interview prep, and salary negotiation briefs along the way.
 
 Runs on **Cloudflare Workers**: one Worker serves the static frontend and the API, with **D1** for structured data, **R2** for original CV files, and **Cloudflare Access (Zero Trust)** gating the whole thing at the edge.
 
@@ -18,18 +18,11 @@ npm run db:init
 #    see "Original files" below)
 npm run r2:create
 
-# 3. Local secrets. SKIP_AUTH is for `wrangler dev` only -- Access doesn't
-#    run in front of localhost, so there's nothing else that could gate
-#    local requests. See "Sign-in" below for the real deployment.
+# 3. Local secrets. No LLM key needed -- Workers AI authenticates via the
+#    "ai" binding alone. SKIP_AUTH is for `wrangler dev` only -- Access
+#    doesn't run in front of localhost, so there's nothing else that could
+#    gate local requests. See "Sign-in" below for the real deployment.
 cat > .dev.vars <<'EOF'
-ANTHROPIC_API_KEY="sk-ant-..."
-SKIP_AUTH="1"
-EOF
-
-# ...or, to use Gemini instead (see "LLM provider" below):
-cat > .dev.vars <<'EOF'
-GOOGLE_API_KEY="AIza..."
-LLM_PROVIDER="gemini"
 SKIP_AUTH="1"
 EOF
 
@@ -49,8 +42,8 @@ CI (`.github/workflows/ci.yml`) runs on every PR and push to `dev`/`main`:
 
 ## What's here
 
-- **Worker** (`src/`): [Hono](https://hono.dev) routes calling an LLM with the relevant skill's `SKILL.md` injected as the system prompt. Routes import from `src/lib/llm.js`, which dispatches to `src/lib/anthropic.js` (Claude, default) or `src/lib/gemini.js` (Gemini) based on `LLM_PROVIDER` -- see "LLM provider" below.
-- **Frontend** (`public/`): plain HTML/CSS/JS, no build step. Four pages -- **Tracker** (kanban by stage), **CV Store** (upload/paste CVs, mark a master, improve one via streaming chat), **Tailor** (quick job-post-vs-CV check), and **Job Search** (live web search ranked by fit and pay).
+- **Worker** (`src/`): [Hono](https://hono.dev) routes calling Cloudflare Workers AI with the relevant skill's `SKILL.md` injected as the system prompt. Routes import from `src/lib/llm.js`, which calls `src/lib/workersai.js` -- see "LLM provider" below.
+- **Frontend** (`public/`): plain HTML/CSS/JS, no build step. Four pages -- **Tracker** (kanban by stage), **CV Store** (upload/paste CVs, mark a master, improve one via streaming chat), **Tailor** (quick job-post-vs-CV check), and **Job Search** (scrapes ATS career pages you configure, ranked by fit and pay).
 - **Skills** (`skills/`): all 22 skills from [Paramchoudhary/ResumeSkills](https://github.com/Paramchoudhary/ResumeSkills), plus two written for this app -- `job-search-matcher` and `application-tracker`. `src/lib/skills.js` holds the routing table (`SKILL_ROUTES`) mapping each task to the skills that apply.
 - **Database** (`schema.sql`): D1. Eight tables -- `cvs`, `applications`, `documents`, `activity_events`, `templates`, `chat_messages`, `profile`, `token_usage`.
 - **Original files** (`src/lib/r2.js`): R2. As-uploaded CV bytes, keyed by CV id.
@@ -61,7 +54,7 @@ Because Workers have no filesystem, `scripts/build-skills.mjs` inlines the skill
 
 1. **CV Store** -- your CV library. Upload or paste CVs, mark one as master, and improve any of them through a streaming chat that asks clarifying questions before proposing a full rewrite.
 2. **Tailor** -- paste a job posting, pick a base CV and optionally a role "flavor" (tech/executive/academic/creative/career-change), and get a match analysis plus a tailored CV.
-3. **Job Search** -- live web search for openings matching your CV and a location, ranked by fit and estimated compensation. Every result is backed by a real search hit; sources are shown so you can check.
+3. **Job Search** -- scrapes the ATS career pages you've configured (see "Job search: ATS watchlist" below) for openings matching your CV, ranked by fit and estimated compensation.
 4. **Tracker** -- applications grouped by stage (Saved → Applied → Screening → Interview → Offer, plus Rejected/Withdrawn), with stalled ones flagged. Click into one to tailor a CV to that posting, or generate a cover letter, cold email, interview prep pack, negotiation brief, application-form answers, reference list, offer comparison, LinkedIn tune-up, or portfolio case study.
 
 ## Original files
@@ -78,26 +71,11 @@ The bucket name (`resume-copilot-originals`) and binding (`ORIGINALS`) are alrea
 
 ## LLM provider
 
-Claude (Anthropic) by default. To use Gemini instead:
+This app uses [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) exclusively -- no API key needed, since it authenticates via the `ai` binding in `wrangler.jsonc` alone. `WORKERS_AI_MODEL`/`WORKERS_AI_CHAT_MODEL` in `wrangler.jsonc`'s `vars` block select which `@cf/...` model each flow uses: `WORKERS_AI_MODEL` for one-shot tasks (tailoring, document generation), `WORKERS_AI_CHAT_MODEL` for the interactive CV-improve chat.
 
-```bash
-npx wrangler secret put GOOGLE_API_KEY   # or GOOGLE_API_KEY in .dev.vars locally
-```
+## Job search: ATS watchlist (required for results)
 
-```jsonc
-// wrangler.jsonc
-"vars": {
-  "LLM_PROVIDER": "gemini",
-  "GEMINI_MODEL": "gemini-2.5-flash",  // optional, this is the default
-  ...
-}
-```
-
-Both providers implement the same three-function interface (`src/lib/llm.js` picks between `src/lib/anthropic.js` and `src/lib/gemini.js`), so nothing else about the app changes -- same routes, same streaming chat, same job-search grounding (Gemini's built-in Google Search tool stands in for Anthropic's `web_search`). You only need the one API key for whichever provider is active; the other is never read.
-
-## Job search: ATS watchlist (optional)
-
-Job Search's primary source is always LLM-driven web search (above). Optionally, it can also pull from [Apify](https://apify.com)'s `fantastic-jobs/jobs-scraper` actor, which reads ATS platforms' own public APIs (Greenhouse, Lever, Ashby, Workday, and others) directly rather than relying on an LLM to find and interpret search results. This is **not a live search** -- the actor takes an explicit list of company career-page URLs (`startUrls`) and scrapes exactly those companies, so it only ever returns openings from companies you've told it to track. To enable it: get a token at [console.apify.com/settings/integrations](https://console.apify.com/settings/integrations) and set `APIFY_API_TOKEN` (`npx wrangler secret put APIFY_API_TOKEN`, or `APIFY_API_TOKEN` in `.dev.vars` locally), then set `APIFY_WATCHLIST` to a JSON array of `{"url","company"}` pairs -- one per company you want tracked, e.g. `[{"url":"https://boards.greenhouse.io/stripe","company":"Stripe"}]`. Building that list means finding each company's own Greenhouse/Lever/Ashby/Workday careers page URL and adding it yourself; there's no way to discover new companies through this source, only to track ones you already picked. Leaving `APIFY_API_TOKEN` or `APIFY_WATCHLIST` unset skips this source entirely -- job search still works with web search alone, and results merge into the same list (jobs found via the ATS source are tagged with an "ATS listing" pill in the UI).
+Job Search's only source is [Apify](https://apify.com)'s `fantastic-jobs/jobs-scraper` actor, which reads ATS platforms' own public APIs (Greenhouse, Lever, Ashby, Workday, and others) directly for the companies you tell it to track. This is **not a live search** -- the actor takes an explicit list of company career-page URLs (`startUrls`) and scrapes exactly those companies, so it only ever returns openings from companies you've told it to track; there's no way to discover new companies through this source. To use Job Search at all: get a token at [console.apify.com/settings/integrations](https://console.apify.com/settings/integrations) and set `APIFY_API_TOKEN` (`npx wrangler secret put APIFY_API_TOKEN`, or `APIFY_API_TOKEN` in `.dev.vars` locally), then set `APIFY_WATCHLIST` to a JSON array of `{"url","company"}` pairs -- one per company you want tracked, e.g. `[{"url":"https://boards.greenhouse.io/stripe","company":"Stripe"}]`. Building that list means finding each company's own Greenhouse/Lever/Ashby/Workday careers page URL and adding it yourself. Leaving `APIFY_API_TOKEN` or `APIFY_WATCHLIST` unset means Job Search returns no results.
 
 ## Deploy
 
@@ -165,7 +143,7 @@ Single-tenant, same as this app has been throughout: whoever your Access policy 
 
 Neither is a secret -- they only identify which Access application's JWTs the Worker accepts, not a bearer credential, so they live in version control like the D1 database id above. Redeploy (`npm run deploy`) after editing them.
 
-**That's the whole setup -- no `wrangler secret put` beyond `ANTHROPIC_API_KEY`.** Visit `resume.btopencloud.com`; Access intercepts you, runs whichever identity provider you picked, and only then forwards the request to the Worker with a signed JWT proving who you are. The Worker verifies that JWT itself (`src/lib/auth.js`) rather than just trusting that traffic reaching it must be legitimate -- which is what keeps the `*.workers.dev` URL locked out automatically: Access never fronts it, so no request there can ever carry a validly-signed JWT, and the Worker rejects everything without one.
+**That's the whole setup -- no `wrangler secret put` needed at all.** Visit `resume.btopencloud.com`; Access intercepts you, runs whichever identity provider you picked, and only then forwards the request to the Worker with a signed JWT proving who you are. The Worker verifies that JWT itself (`src/lib/auth.js`) rather than just trusting that traffic reaching it must be legitimate -- which is what keeps the `*.workers.dev` URL locked out automatically: Access never fronts it, so no request there can ever carry a validly-signed JWT, and the Worker rejects everything without one.
 
 Until both `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are set to real values, every request fails closed with a 401. That's the correct default while you're mid-setup, not a bug to work around.
 
@@ -178,7 +156,7 @@ To sign out, the nav's **Log out** button sends the browser to `/cdn-cgi/access/
 - **PDF upload isn't supported** -- only `.docx`, `.txt`, `.md` (10 MB cap). Convert PDFs first.
 - **CV → .docx export** uses a lightweight markdown-ish renderer (`src/lib/docxOut.js`), not a template engine.
 - **Single-tenant.** One allow-list, one shared dataset, no per-user accounts.
-- **Job search depends on live web search** and can come up thin for a niche role/location combo -- the skill is instructed to say so rather than pad the list.
+- **Job search only covers the companies in your `APIFY_WATCHLIST`** -- it can't discover new companies on its own, so results are limited to whatever ATS career pages you've configured.
 
 ## Next steps
 

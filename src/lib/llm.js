@@ -1,27 +1,18 @@
-// LLM provider switch. Route files import runTask/runChatStream/
-// runWebSearchTask from here rather than from lib/anthropic.js,
-// lib/gemini.js, or lib/workersai.js directly, so they stay
-// provider-agnostic -- all three providers implement the exact same
-// three-function contract, including a normalized
-// {input, output, cacheRead, cacheWrite} usage shape.
+// LLM access -- Workers AI only (see docs/superpowers/specs/2026-08-16-resume-agent-core-design.md's
+// "Model choice" paragraph: Anthropic and Gemini are dropped entirely, no
+// multi-vendor abstraction here anymore). "Swappable" means swapping which
+// @cf/... model id WORKERS_AI_MODEL/WORKERS_AI_CHAT_MODEL points at, not
+// swapping vendors.
 //
-// This module also enforces a blunt daily token cap across every provider
-// alike (a runaway-cost guard, not a precise rate limiter): each call checks
-// the UTC day's running total before starting, and records its own usage
-// after finishing. The last call that pushes a day over the cap is still
-// allowed to complete -- the cap blocks the *next* call, not mid-call.
+// This module also enforces a blunt daily token cap across every call:
+// each call checks the UTC day's running total before starting, and
+// records its own usage after finishing. The last call that pushes a day
+// over the cap is still allowed to complete -- the cap blocks the *next*
+// call, not mid-call.
 
-import * as anthropic from "./anthropic.js";
-import * as gemini from "./gemini.js";
 import * as workersai from "./workersai.js";
 import * as db from "./db.js";
 
-const PROVIDERS = { anthropic, gemini, workersai };
-
-// A runaway-cost/bug guard, not a tight budget -- glm-4.7-flash's reasoning
-// overhead plus the skill-prompt-heavy input means a single real tailoring
-// call already runs ~13K tokens (confirmed empirically), so anything much
-// lower than this blocks nearly all real use after one request.
 const DAILY_TOKEN_CAP = 100000;
 
 function today() {
@@ -45,29 +36,9 @@ async function recordUsage(env, usage) {
   if (tokens > 0) await db.addTokenUsage(env.DB, today(), tokens);
 }
 
-function providerFor(env) {
-  const name = (env.LLM_PROVIDER || "anthropic").toLowerCase();
-  const provider = PROVIDERS[name];
-  if (!provider) {
-    const err = new Error(
-      `Unknown LLM_PROVIDER "${env.LLM_PROVIDER}". Use "anthropic", "gemini", or "workersai".`
-    );
-    err.status = 500;
-    throw err;
-  }
-  return provider;
-}
-
 export async function runTask(args) {
   await assertUnderCap(args.env);
-  const result = await providerFor(args.env).runTask(args);
-  await recordUsage(args.env, result.usage);
-  return result;
-}
-
-export async function runWebSearchTask(args) {
-  await assertUnderCap(args.env);
-  const result = await providerFor(args.env).runWebSearchTask(args);
+  const result = await workersai.runTask(args);
   await recordUsage(args.env, result.usage);
   return result;
 }
@@ -77,7 +48,7 @@ export async function runWebSearchTask(args) {
  * the caller, so the cap check and the byte-for-byte passthrough both live
  * inside this wrapper stream's own `start()` -- same lifecycle Cloudflare
  * already keeps alive for every provider's own stream, no ctx.waitUntil()
- * or stream-teeing required. Providers pass `usage` as onDone's second
+ * or stream-teeing required. workersai.js passes `usage` as onDone's second
  * argument specifically so this can record it without parsing SSE itself.
  */
 export function runChatStream(args) {
@@ -99,7 +70,7 @@ export function runChatStream(args) {
       }
 
       const userOnDone = args.onDone;
-      const upstream = providerFor(args.env).runChatStream({
+      const upstream = workersai.runChatStream({
         ...args,
         onDone: async (reply, usage) => {
           await recordUsage(args.env, usage);

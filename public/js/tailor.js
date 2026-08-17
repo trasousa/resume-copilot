@@ -1,5 +1,6 @@
 import { api, escapeHtml, renderNav, showError, checkApiKey, wireJobPostFetch, ensureCvsOrEmptyState } from "./app.js";
 import { mountCvDocument } from "./cv-doc.js";
+import { renderMarkdown } from "./markdown.js";
 
 renderNav("tailor.html");
 checkApiKey();
@@ -46,16 +47,28 @@ document.getElementById("runBtn").onclick = async () => {
 };
 
 function render(data) {
+  document.getElementById("jdPane").open = false;
+  document.getElementById("studioSplit").classList.add("jd-collapsed");
+
   const analysisText = data.analysis
     .replace(/```CV\n[\s\S]*?\n```/, "")
     .replace(/```KEYWORDS\n[\s\S]*?\n```/, "")
     .trim();
   resultEl.innerHTML = `
-    <div class="card">
-      <h2>Match analysis</h2>
-      <div class="doc-content">${escapeHtml(analysisText)}</div>
+    <details class="card" open>
+      <summary><h2 style="display:inline;">Match analysis</h2></summary>
+      <div class="doc-content markdown-body">${renderMarkdown(analysisText)}</div>
+    </details>
+    <div class="compare-grid">
+      <div>
+        <h3 class="muted" style="margin-bottom:8px;">Current</h3>
+        <div id="originalCvMount"></div>
+      </div>
+      <div>
+        <h3 class="muted" style="margin-bottom:8px;">Tailored</h3>
+        <div id="tailoredCvMount"></div>
+      </div>
     </div>
-    <div id="tailoredCvMount"></div>
   `;
 
   if (!data.tailoredText) {
@@ -63,6 +76,17 @@ function render(data) {
       `<p class="muted">No structured tailored CV was returned — try again, or refine the job posting text.</p>`;
     return;
   }
+
+  api(`/cvs/${data.baseCvId}`)
+    .then((baseCv) => {
+      mountCvDocument(document.getElementById("originalCvMount"), {
+        content: baseCv.content,
+        editable: false,
+      });
+    })
+    .catch(() => {
+      document.getElementById("originalCvMount").innerHTML = `<p class="muted">Couldn't load the original CV for comparison.</p>`;
+    });
 
   const scoreMatch = data.analysis.match(/match\s*score[:\s]*[^\d]{0,10}(\d{1,3})/i);
   const pill = document.getElementById("matchPill");
