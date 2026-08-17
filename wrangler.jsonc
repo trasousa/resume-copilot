@@ -10,15 +10,6 @@
 
   "observability": { "enabled": true },
 
-  // Forwards agents:* diagnostics-channel events (RPC calls, state changes,
-  // lifecycle) to the Tail Worker in tail-worker/ (already built and
-  // deployed as its own Worker -- see package.json's deploy:tail script).
-  // Commented out because Tail Workers require the Workers Paid plan
-  // ($5/mo minimum) -- Cloudflare confirmed this is a hard plan gate, not a
-  // bug or a manual step we're missing. Uncomment this one line to turn
-  // production observability back on once/if the account upgrades.
-  // "tail_consumers": [{ "service": "resume-copilot-tail" }],
-
   // Static frontend. Served by the same Worker as the API, so there is no
   // second deploy and no cross-origin config.
   "assets": {

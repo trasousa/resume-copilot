@@ -100,9 +100,9 @@ export { ResumeAgent };
 
 // Structured agent events (RPC calls, state changes, lifecycle) logged via
 // console -- captured by Workers Logs (already enabled in wrangler.jsonc,
-// included on the Free plan) with zero extra infrastructure. Independent of
-// Tail Workers, which need the Workers Paid plan -- see
-// docs/superpowers/specs/2026-08-16-resume-agent-core-design.md.
+// included on the Free plan) with zero extra infrastructure. No Tail Worker
+// involved: those need the Workers Paid plan, so this account uses this
+// console-based path exclusively.
 // subscribe() takes the bare channel key ("lifecycle", not "agents:lifecycle")
 // and prepends "agents:" itself internally -- passing the prefixed form here
 // previously subscribed to the never-published "agents:agents:lifecycle" and
