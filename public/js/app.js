@@ -168,19 +168,9 @@ export function timeAgo(iso) {
 }
 
 export async function checkApiKey() {
-  try {
-    const health = await api("/health");
-    if (!health.hasApiKey) {
-      const keyName = health.apiKeyName || "ANTHROPIC_API_KEY";
-      const banner = document.createElement("div");
-      banner.className = "error-banner";
-      banner.innerHTML =
-        `No <code>${keyName}</code> set on the Worker. Run ` +
-        `<code>npx wrangler secret put ${keyName}</code> ` +
-        "(or add it to <code>.dev.vars</code> locally) for AI features to work.";
-      document.querySelector("main")?.prepend(banner);
-    }
-  } catch {
-    // Best-effort banner -- a failed health check shouldn't block the page.
-  }
+  // Workers AI needs no API key (auth is the "ai" binding alone), so there
+  // is nothing left for this check to warn about. Kept as a no-op export
+  // rather than removed, since every page still imports and calls it --
+  // removing it would mean touching all 7 page scripts for no behavior
+  // change.
 }

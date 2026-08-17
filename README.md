@@ -1,6 +1,6 @@
 # Resume Copilot
 
-A small full-stack app that ties Claude + a set of resume/career skills together into one workflow: paste a job post and get a tailored CV, optimize your CV interactively, search the live web for roles that fit you, and track every application through its stages -- generating cover letters, cold emails, interview prep, and salary negotiation briefs along the way.
+A small full-stack app that ties Cloudflare Workers AI + a set of resume/career skills together into one workflow: paste a job post and get a tailored CV, optimize your CV interactively, search the live web for roles that fit you, and track every application through its stages -- generating cover letters, cold emails, interview prep, and salary negotiation briefs along the way.
 
 Runs on **Cloudflare Workers**: one Worker serves the static frontend and the API, with **D1** for structured data, **R2** for original CV files, and **Cloudflare Access (Zero Trust)** gating the whole thing at the edge.
 
@@ -18,18 +18,11 @@ npm run db:init
 #    see "Original files" below)
 npm run r2:create
 
-# 3. Local secrets. SKIP_AUTH is for `wrangler dev` only -- Access doesn't
-#    run in front of localhost, so there's nothing else that could gate
-#    local requests. See "Sign-in" below for the real deployment.
+# 3. Local secrets. No LLM key needed -- Workers AI authenticates via the
+#    "ai" binding alone. SKIP_AUTH is for `wrangler dev` only -- Access
+#    doesn't run in front of localhost, so there's nothing else that could
+#    gate local requests. See "Sign-in" below for the real deployment.
 cat > .dev.vars <<'EOF'
-ANTHROPIC_API_KEY="sk-ant-..."
-SKIP_AUTH="1"
-EOF
-
-# ...or, to use Gemini instead (see "LLM provider" below):
-cat > .dev.vars <<'EOF'
-GOOGLE_API_KEY="AIza..."
-LLM_PROVIDER="gemini"
 SKIP_AUTH="1"
 EOF
 
@@ -49,7 +42,7 @@ CI (`.github/workflows/ci.yml`) runs on every PR and push to `dev`/`main`:
 
 ## What's here
 
-- **Worker** (`src/`): [Hono](https://hono.dev) routes calling an LLM with the relevant skill's `SKILL.md` injected as the system prompt. Routes import from `src/lib/llm.js`, which dispatches to `src/lib/anthropic.js` (Claude, default) or `src/lib/gemini.js` (Gemini) based on `LLM_PROVIDER` -- see "LLM provider" below.
+- **Worker** (`src/`): [Hono](https://hono.dev) routes calling Cloudflare Workers AI with the relevant skill's `SKILL.md` injected as the system prompt. Routes import from `src/lib/llm.js`, which calls `src/lib/workersai.js` -- see "LLM provider" below.
 - **Frontend** (`public/`): plain HTML/CSS/JS, no build step. Four pages -- **Tracker** (kanban by stage), **CV Store** (upload/paste CVs, mark a master, improve one via streaming chat), **Tailor** (quick job-post-vs-CV check), and **Job Search** (live web search ranked by fit and pay).
 - **Skills** (`skills/`): all 22 skills from [Paramchoudhary/ResumeSkills](https://github.com/Paramchoudhary/ResumeSkills), plus two written for this app -- `job-search-matcher` and `application-tracker`. `src/lib/skills.js` holds the routing table (`SKILL_ROUTES`) mapping each task to the skills that apply.
 - **Database** (`schema.sql`): D1. Eight tables -- `cvs`, `applications`, `documents`, `activity_events`, `templates`, `chat_messages`, `profile`, `token_usage`.
@@ -78,22 +71,7 @@ The bucket name (`resume-copilot-originals`) and binding (`ORIGINALS`) are alrea
 
 ## LLM provider
 
-Claude (Anthropic) by default. To use Gemini instead:
-
-```bash
-npx wrangler secret put GOOGLE_API_KEY   # or GOOGLE_API_KEY in .dev.vars locally
-```
-
-```jsonc
-// wrangler.jsonc
-"vars": {
-  "LLM_PROVIDER": "gemini",
-  "GEMINI_MODEL": "gemini-2.5-flash",  // optional, this is the default
-  ...
-}
-```
-
-Both providers implement the same three-function interface (`src/lib/llm.js` picks between `src/lib/anthropic.js` and `src/lib/gemini.js`), so nothing else about the app changes -- same routes, same streaming chat, same job-search grounding (Gemini's built-in Google Search tool stands in for Anthropic's `web_search`). You only need the one API key for whichever provider is active; the other is never read.
+This app uses [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) exclusively -- no API key needed, since it authenticates via the `ai` binding in `wrangler.jsonc` alone. `WORKERS_AI_MODEL`/`WORKERS_AI_CHAT_MODEL` in `wrangler.jsonc`'s `vars` block select which `@cf/...` model each flow uses: `WORKERS_AI_MODEL` for one-shot tasks (tailoring, document generation), `WORKERS_AI_CHAT_MODEL` for the interactive CV-improve chat.
 
 ## Job search: ATS watchlist (optional)
 
@@ -165,7 +143,7 @@ Single-tenant, same as this app has been throughout: whoever your Access policy 
 
 Neither is a secret -- they only identify which Access application's JWTs the Worker accepts, not a bearer credential, so they live in version control like the D1 database id above. Redeploy (`npm run deploy`) after editing them.
 
-**That's the whole setup -- no `wrangler secret put` beyond `ANTHROPIC_API_KEY`.** Visit `resume.btopencloud.com`; Access intercepts you, runs whichever identity provider you picked, and only then forwards the request to the Worker with a signed JWT proving who you are. The Worker verifies that JWT itself (`src/lib/auth.js`) rather than just trusting that traffic reaching it must be legitimate -- which is what keeps the `*.workers.dev` URL locked out automatically: Access never fronts it, so no request there can ever carry a validly-signed JWT, and the Worker rejects everything without one.
+**That's the whole setup -- no `wrangler secret put` needed at all.** Visit `resume.btopencloud.com`; Access intercepts you, runs whichever identity provider you picked, and only then forwards the request to the Worker with a signed JWT proving who you are. The Worker verifies that JWT itself (`src/lib/auth.js`) rather than just trusting that traffic reaching it must be legitimate -- which is what keeps the `*.workers.dev` URL locked out automatically: Access never fronts it, so no request there can ever carry a validly-signed JWT, and the Worker rejects everything without one.
 
 Until both `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are set to real values, every request fails closed with a 401. That's the correct default while you're mid-setup, not a bug to work around.
 
