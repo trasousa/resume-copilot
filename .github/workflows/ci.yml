@@ -65,16 +65,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # Tail Worker deploy is intentionally NOT run here. tail_consumers is
-      # commented out in wrangler.jsonc (Tail Workers need the Workers Paid
-      # plan), and observability is instead recovered on the free tier via
-      # agents/observability's subscribe() straight in the main Worker (see
-      # src/index.js) plus this Worker's own `observability: { enabled: true
-      # }` -- see docs/superpowers/specs/2026-08-16-resume-agent-core-design.md.
-      # Deploying tail-worker/ here would just redeploy an orphaned Worker
-      # nothing forwards events to. Re-add this step (before the main Worker
-      # step, so tail_consumers' reference is never briefly dangling) if/when
-      # the account upgrades and tail_consumers is uncommented.
+      # No Tail Worker to deploy here -- Tail Workers need the Workers Paid
+      # plan, so this account relies on agents/observability's subscribe()
+      # straight in the main Worker (see src/index.js) plus this Worker's own
+      # `observability: { enabled: true }` for logging instead.
       - name: Deploy main Worker
         run: npm run deploy
         env:
