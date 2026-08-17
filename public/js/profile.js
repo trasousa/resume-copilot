@@ -193,6 +193,13 @@ async function renderSettled(cvs) {
         <div class="row" style="margin-top: 12px;"><button class="btn" id="saveProfileBtn">Save</button><span id="saveStatus" class="muted"></span></div>
       </div>
     </div>
+    <div class="card" style="border-color: var(--danger);">
+      <h2 style="color: var(--danger);">Danger zone</h2>
+      <p class="muted">Permanently delete your resume, applications, generated documents, and preferences. This cannot be undone.</p>
+      <label>Type DELETE to confirm</label>
+      <input type="text" id="deleteConfirmInput" placeholder="DELETE" />
+      <button class="btn danger" id="deleteAccountBtn" style="margin-top:12px;" disabled>Delete my account</button>
+    </div>
   `;
 
   document.getElementById("saveProfileBtn").onclick = async () => {
@@ -214,6 +221,22 @@ async function renderSettled(cvs) {
       setTimeout(() => (status.textContent = ""), 1500);
     } catch (err) {
       status.textContent = "";
+      showError(main, err);
+    }
+  };
+
+  const deleteInput = document.getElementById("deleteConfirmInput");
+  const deleteBtn = document.getElementById("deleteAccountBtn");
+  deleteInput.oninput = () => { deleteBtn.disabled = deleteInput.value !== "DELETE"; };
+  deleteBtn.onclick = async () => {
+    deleteBtn.disabled = true;
+    deleteBtn.textContent = "Deleting…";
+    try {
+      await api("/account", { method: "DELETE", body: { confirm: "DELETE" } });
+      location.href = "/cdn-cgi/access/logout";
+    } catch (err) {
+      deleteBtn.disabled = false;
+      deleteBtn.textContent = "Delete my account";
       showError(main, err);
     }
   };

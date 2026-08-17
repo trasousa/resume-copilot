@@ -453,3 +453,29 @@ export async function addTokenUsage(db, day, tokens) {
     .bind(day, tokens)
     .run();
 }
+
+// --- Account deletion --------------------------------------------------------
+//
+// This app has no per-user data model (every table is globally shared once
+// past Cloudflare Access) -- see the plan's Global Constraints. "Delete my
+// account" therefore means "wipe everything," the same scope db:reset:local
+// already covers for local dev, just against the live database and also
+// clearing R2 originals (handled by the route layer, which owns the R2
+// binding -- this module never touches R2).
+export async function deleteAllData(db) {
+  const { results } = await db.prepare("SELECT id FROM cvs").all();
+  const cvIds = results.map((r) => r.id);
+
+  await db.batch([
+    db.prepare("DELETE FROM chat_messages"),
+    db.prepare("DELETE FROM documents"),
+    db.prepare("DELETE FROM activity_events"),
+    db.prepare("DELETE FROM templates"),
+    db.prepare("DELETE FROM applications"),
+    db.prepare("DELETE FROM cvs"),
+    db.prepare("DELETE FROM profile"),
+    db.prepare("DELETE FROM token_usage"),
+  ]);
+
+  return { cvIds };
+}
