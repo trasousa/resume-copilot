@@ -53,17 +53,6 @@ function saveProfileFromForm() {
   }).catch(() => {});
 }
 
-function extractJobs(text) {
-  const match = text.match(/```JOBS\n([\s\S]*?)\n```/);
-  if (!match) return [];
-  try {
-    const parsed = JSON.parse(match[1]);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 document.getElementById("searchBtn").onclick = async () => {
   const cvId = cvSelect.value;
   if (!cvId) return alert("Add a CV first (CV Store tab).");
@@ -73,7 +62,7 @@ document.getElementById("searchBtn").onclick = async () => {
   const country = document.getElementById("country").value.trim();
   if (!remote && !city && !region && !country) return alert("Enter a location, or check 'remote'.");
 
-  statusEl.innerHTML = `<span class="spinner"></span> searching the web — this can take a bit…`;
+  statusEl.innerHTML = `<span class="spinner"></span> searching your watchlisted companies — this can take a bit…`;
   resultEl.innerHTML = "";
   try {
     const data = await api("/jobsearch/search", {
@@ -98,15 +87,15 @@ document.getElementById("searchBtn").onclick = async () => {
 };
 
 function render(data, cvId) {
-  const jobs = extractJobs(data.text);
-  const analysisText = data.text.replace(/```JOBS\n[\s\S]*?\n```/, "").trim();
+  const jobs = data.jobs || [];
+  const analysisText = data.text || "";
 
   resultEl.innerHTML = `
     <div class="card">
       <h2>Results</h2>
       <div class="doc-content">${escapeHtml(analysisText)}</div>
     </div>
-    ${data.atsError ? `<div class="error-banner" style="background:var(--warn-soft); color:var(--warn);">ATS search unavailable this time (${escapeHtml(data.atsError)}) -- showing web-search results only.</div>` : ""}
+    ${data.atsError ? `<div class="error-banner" style="background:var(--warn-soft); color:var(--warn);">ATS search failed this time (${escapeHtml(data.atsError)}).</div>` : ""}
     ${
       jobs.length
         ? `<div class="job-grid">${jobs
@@ -130,13 +119,6 @@ function render(data, cvId) {
           </div>`
             )
             .join("")}</div>`
-        : ""
-    }
-    ${
-      data.sources?.length
-        ? `<div class="card"><h2>Search sources</h2><p class="muted">Every job above came from one of these live search results — check here if anything looks off.</p>
-          <div class="tag-list">${data.sources.filter((s) => safeUrl(s.url)).map((s) => `<a class="pill muted" href="${escapeHtml(safeUrl(s.url))}" target="_blank" rel="noopener">${escapeHtml(s.title || s.url)}</a>`).join("")}</div>
-        </div>`
         : ""
     }
   `;

@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import * as db from "../lib/db.js";
-import { buildSkillPrompt, SKILL_ROUTES } from "../lib/skills.js";
-import { runWebSearchTask } from "../lib/llm.js";
+import { runTask } from "../lib/llm.js";
 import { runApifyAtsSearch } from "../lib/apify.js";
 
 const router = new Hono();
@@ -20,22 +19,37 @@ function parseWatchlist(env) {
 }
 
 router.post("/search", async (c) => {
-  const { cvId, city, region, country, remote, minComp, notes } =
-    await c.req.json();
+  const { cvId, city, region, country, remote, minComp, notes } = await c.req.json();
 
   const cv = await db.resolveCv(c.env.DB, cvId);
   if (!cv)
     return c.json({ error: "No CV available. Upload or set a master CV first." }, 400);
 
-  if (!remote && !city && !region && !country)
-    return c.json({ error: "Provide a location, or set remote=true." }, 400);
+  const watchlist = parseWatchlist(c.env);
+  if (!watchlist.length) {
+    return c.json({
+      text: "No companies configured to search yet. Add at least one to APIFY_WATCHLIST to see results here.",
+      jobs: [],
+      atsError: null,
+    });
+  }
 
+  const ats = await runApifyAtsSearch({ apiToken: c.env.APIFY_API_TOKEN, watchlist });
+  if (ats.error) {
+    return c.json({ text: "", jobs: [], atsError: ats.error });
+  }
+  if (!ats.jobs.length) {
+    return c.json({ text: "No open roles found at your watchlisted companies right now.", jobs: [], atsError: null });
+  }
+
+  // Rank the real, scraped listings against the candidate's CV -- this is
+  // a plain LLM call (no search capability needed), which Workers AI
+  // handles fine; it's live web search specifically that Workers AI lacks.
   const stable =
-    `You are a job-search copilot with live web search access. Follow the skill ` +
-    `guidance below precisely. Only report postings you actually found via ` +
-    `search, with real URLs from the results -- never invent a company, ` +
-    `listing, or link.\n\n` +
-    buildSkillPrompt(SKILL_ROUTES.jobSearch);
+    `You are a job-matching assistant. You will be given a candidate's CV ` +
+    `and a list of real, already-found job postings. Rank them by fit for ` +
+    `this candidate and explain briefly why. Never invent postings or ` +
+    `details not present in the list you were given. Do not use emojis.`;
 
   const locationLine = remote
     ? `Remote (${[city, region, country].filter(Boolean).join(", ") || "any location"})`
@@ -43,57 +57,31 @@ router.post("/search", async (c) => {
 
   const prompt =
     `Candidate's CV:\n"""\n${cv.content}\n"""\n\n` +
-    `Search for open job postings that fit this candidate, favoring higher ` +
-    `compensation among good fits.\nTarget location: ${locationLine}\n` +
+    `Target location: ${locationLine || "any"}\n` +
     (minComp ? `Minimum target compensation: ${minComp}\n` : "") +
-    (notes ? `Additional preferences from the candidate: ${notes}\n` : "") +
-    `\nReturn the ranked shortlist per the skill's output format as readable ` +
-    `markdown.\n\nThen, ALSO output the same shortlist as a JSON array (same ` +
-    `jobs, same order) inside a fenced block starting with \`\`\`JOBS and ending ` +
-    `with \`\`\`, where each item is exactly: {"title": string, "company": string, ` +
-    `"location": string, "url": string, "compEstimate": string, "matchScore": ` +
-    `number, "fitNote": string}. Each item must also include "matchScore": an integer 0-100 ` +
-    `estimating how well this posting fits the candidate's CV (skills, ` +
-    `seniority, domain overlap) -- the same scale used elsewhere for match ` +
-    `scoring. The "url" must be a real URL from your search results -- omit a ` +
-    `job from the JSON entirely rather than inventing a URL.`;
+    (notes ? `Additional preferences: ${notes}\n` : "") +
+    `\nJob postings found:\n${JSON.stringify(ats.jobs, null, 2)}\n\n` +
+    `Return two things:\n` +
+    `1. A short markdown summary (2-4 sentences) of the overall fit of this batch.\n` +
+    `2. A fenced block starting with \`\`\`RANKED and ending with \`\`\` containing ` +
+    `a JSON array, same jobs, reordered best-fit-first, each with an added ` +
+    `"matchScore" (integer 0-100) and "fitNote" (one sentence) field.`;
 
-  const [webResult, atsResult] = await Promise.allSettled([
-    runWebSearchTask({ env: c.env, stable, prompt, location: { city, region, country } }),
-    runApifyAtsSearch({
-      apiToken: c.env.APIFY_API_TOKEN,
-      watchlist: parseWatchlist(c.env),
-    }),
-  ]);
+  const { text } = await runTask({ env: c.env, stable, prompt, maxTokens: 4000 });
 
-  // A web-search failure shouldn't take down the whole request when the
-  // deterministic ATS source succeeded -- degrade to empty text/sources and
-  // surface the error via atsError-style reporting instead of throwing.
-  const webFailed = webResult.status === "rejected";
-  const { text, sources } = webFailed ? { text: "", sources: [] } : webResult.value;
-  const webError = webFailed ? `Web search failed: ${webResult.reason?.message || webResult.reason}` : null;
-
-  const ats = atsResult.status === "fulfilled" ? atsResult.value : { jobs: [], error: `ATS search failed: ${atsResult.reason?.message || atsResult.reason}` };
-
-  // Merge the ATS-sourced jobs into the same JOBS block the frontend
-  // already parses, deduplicated by URL so a job both sources happen to
-  // find isn't shown twice.
-  const jobsMatch = text.match(/```JOBS\n([\s\S]*?)\n```/);
-  let webJobs = [];
-  if (jobsMatch) {
-    try { webJobs = JSON.parse(jobsMatch[1]); } catch { webJobs = []; }
+  let rankedJobs = ats.jobs;
+  const rankedMatch = text.match(/```RANKED\n([\s\S]*?)\n```/);
+  if (rankedMatch) {
+    try {
+      const parsed = JSON.parse(rankedMatch[1]);
+      if (Array.isArray(parsed)) rankedJobs = parsed;
+    } catch {
+      // Fall through to the unranked (but still real) job list.
+    }
   }
-  const seenUrls = new Set(webJobs.map((j) => j.url));
-  const mergedJobs = [...webJobs, ...ats.jobs.filter((j) => !seenUrls.has(j.url))];
-  const mergedText = jobsMatch
-    ? text.replace(jobsMatch[0], () => "```JOBS\n" + JSON.stringify(mergedJobs, null, 2) + "\n```")
-    : ats.jobs.length
-      ? text + "\n\n```JOBS\n" + JSON.stringify(ats.jobs, null, 2) + "\n```"
-      : text;
 
-  const atsError = [webError, ats.error].filter(Boolean).join(" ") || null;
-
-  return c.json({ text: mergedText, sources, atsError });
+  const summary = text.replace(/```RANKED\n[\s\S]*?\n```/, "").trim();
+  return c.json({ text: summary, jobs: rankedJobs, atsError: null });
 });
 
 export default router;

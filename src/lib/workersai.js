@@ -18,9 +18,10 @@
 // providers with native search proxying (confirmed by direct testing: a
 // `web_search`/`web_search_preview` tool type is rejected outright, and the
 // documented `web_search_options` param is silently a no-op -- the model
-// says outright it has no live search access). runWebSearchTask below
-// throws rather than fabricating results; live web search for Job Search
-// moves to Browser Rendering in a later sub-project.
+// says outright it has no live search access). Job Search now relies
+// exclusively on the Apify ATS source (src/lib/apify.js) for listings --
+// Workers AI is only used to rank those real, already-found postings
+// against the candidate's CV, never to search the web itself.
 
 export const DEFAULT_MODEL = "@cf/zai-org/glm-4.7-flash";
 
@@ -156,19 +157,4 @@ export function runChatStream({ env, stable, volatile, messages, maxTokens = 800
       }
     },
   });
-}
-
-/**
- * Not supported -- see the module comment. Fails loud rather than
- * fabricating job postings, matching the job-search skill's own rule
- * against inventing listings.
- */
-export async function runWebSearchTask() {
-  const err = new Error(
-    'Workers AI has no live web search yet. Set LLM_PROVIDER to "anthropic" ' +
-      'or "gemini" for Job Search specifically until Browser Rendering-based ' +
-      "search lands (see the design spec's sub-project 5)."
-  );
-  err.status = 501;
-  throw err;
 }
