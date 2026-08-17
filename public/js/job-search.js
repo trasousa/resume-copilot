@@ -62,7 +62,7 @@ document.getElementById("searchBtn").onclick = async () => {
   const country = document.getElementById("country").value.trim();
   if (!remote && !city && !region && !country) return alert("Enter a location, or check 'remote'.");
 
-  statusEl.innerHTML = `<span class="spinner"></span> searching your watchlisted companies — this can take a bit…`;
+  statusEl.innerHTML = `<span class="spinner"></span> searching open roles — this can take a bit…`;
   resultEl.innerHTML = "";
   try {
     const data = await api("/jobsearch/search", {
@@ -95,7 +95,7 @@ function render(data, cvId) {
       <h2>Results</h2>
       <div class="doc-content">${escapeHtml(analysisText)}</div>
     </div>
-    ${data.atsError ? `<div class="error-banner" style="background:var(--warn-soft); color:var(--warn);">ATS search failed this time (${escapeHtml(data.atsError)}).</div>` : ""}
+    ${data.searchError ? `<div class="error-banner" style="background:var(--warn-soft); color:var(--warn);">Job search failed this time (${escapeHtml(data.searchError)}).</div>` : ""}
     ${
       jobs.length
         ? `<div class="job-grid">${jobs
@@ -108,7 +108,7 @@ function render(data, cvId) {
                 <p class="muted" style="margin:0;">${escapeHtml(j.company)}</p>
               </div>
               ${j.matchScore != null ? `<span class="match-badge ${j.matchScore >= 80 ? "high" : j.matchScore >= 50 ? "mid" : "low"}">${j.matchScore}% MATCH</span>` : ""}
-              ${j.source === "ats" ? `<span class="pill muted" title="Found via direct ATS scraping, not web search">ATS listing</span>` : ""}
+              ${j.source === "arbeitnow" ? `<span class="pill muted" title="Found via Arbeitnow's job board API">Arbeitnow</span>` : ""}
             </div>
             <p class="muted" style="margin:10px 0;">${icon("mapPin")} ${escapeHtml(j.location || "")} ${j.compEstimate ? `&nbsp;${icon("dollar")} ${escapeHtml(j.compEstimate)}` : ""}</p>
             ${j.fitNote ? `<p style="font-size:13.5px;">${escapeHtml(j.fitNote)}</p>` : ""}

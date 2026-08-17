@@ -1,22 +1,9 @@
 import { Hono } from "hono";
 import * as db from "../lib/db.js";
 import { runTask } from "../lib/llm.js";
-import { runApifyAtsSearch } from "../lib/apify.js";
+import { fetchArbeitnowJobs } from "../lib/arbeitnow.js";
 
 const router = new Hono();
-
-// APIFY_WATCHLIST is a JSON array of {"url","company"} objects -- which
-// companies' ATS career pages to scrape. A personal curation list, kept in
-// an env var (not hardcoded) so it's editable per-deployment. Malformed or
-// unset -> empty list -> the ATS source silently contributes nothing.
-function parseWatchlist(env) {
-  try {
-    const parsed = JSON.parse(env.APIFY_WATCHLIST || "[]");
-    return Array.isArray(parsed) ? parsed.filter((w) => w?.url && w?.company) : [];
-  } catch {
-    return [];
-  }
-}
 
 router.post("/search", async (c) => {
   const { cvId, city, region, country, remote, minComp, notes } = await c.req.json();
@@ -25,21 +12,16 @@ router.post("/search", async (c) => {
   if (!cv)
     return c.json({ error: "No CV available. Upload or set a master CV first." }, 400);
 
-  const watchlist = parseWatchlist(c.env);
-  if (!watchlist.length) {
+  const found = await fetchArbeitnowJobs({ remote, city, region, country });
+  if (found.error) {
+    return c.json({ text: "", jobs: [], searchError: found.error });
+  }
+  if (!found.jobs.length) {
     return c.json({
-      text: "No companies configured to search yet. Add at least one to APIFY_WATCHLIST to see results here.",
+      text: "No open roles matched your location/remote preference right now -- try widening the search.",
       jobs: [],
-      atsError: null,
+      searchError: null,
     });
-  }
-
-  const ats = await runApifyAtsSearch({ apiToken: c.env.APIFY_API_TOKEN, watchlist });
-  if (ats.error) {
-    return c.json({ text: "", jobs: [], atsError: ats.error });
-  }
-  if (!ats.jobs.length) {
-    return c.json({ text: "No open roles found at your watchlisted companies right now.", jobs: [], atsError: null });
   }
 
   // Rank the real, scraped listings against the candidate's CV -- this is
@@ -60,7 +42,7 @@ router.post("/search", async (c) => {
     `Target location: ${locationLine || "any"}\n` +
     (minComp ? `Minimum target compensation: ${minComp}\n` : "") +
     (notes ? `Additional preferences: ${notes}\n` : "") +
-    `\nJob postings found:\n${JSON.stringify(ats.jobs, null, 2)}\n\n` +
+    `\nJob postings found:\n${JSON.stringify(found.jobs, null, 2)}\n\n` +
     `Return two things:\n` +
     `1. A short markdown summary (2-4 sentences) of the overall fit of this batch.\n` +
     `2. A fenced block starting with \`\`\`RANKED and ending with \`\`\` containing ` +
@@ -69,7 +51,7 @@ router.post("/search", async (c) => {
 
   const { text } = await runTask({ env: c.env, stable, prompt, maxTokens: 4000 });
 
-  let rankedJobs = ats.jobs;
+  let rankedJobs = found.jobs;
   const rankedMatch = text.match(/```RANKED\n([\s\S]*?)\n```/);
   if (rankedMatch) {
     try {
@@ -81,7 +63,7 @@ router.post("/search", async (c) => {
   }
 
   const summary = text.replace(/```RANKED\n[\s\S]*?\n```/, "").trim();
-  return c.json({ text: summary, jobs: rankedJobs, atsError: null });
+  return c.json({ text: summary, jobs: rankedJobs, searchError: null });
 });
 
 export default router;
