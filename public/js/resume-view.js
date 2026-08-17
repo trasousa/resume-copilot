@@ -14,7 +14,8 @@ export function renderResumeView(container, parsed) {
   }
 
   const links = (parsed.links || [])
-    .map((l) => {
+    .map((raw) => {
+      const l = String(raw);
       const url = safeUrl(l.startsWith("http") ? l : `https://${l}`);
       return url
         ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(l)}</a>`

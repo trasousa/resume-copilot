@@ -115,6 +115,14 @@ npx wrangler d1 execute resume-copilot --remote --command="ALTER TABLE applicati
 
 Skip this on a brand-new database -- `db:init`/`db:init:local` already creates `applications` with `match_score` included.
 
+**Upgrading an existing deployment** (a remote D1 database created before the `parsed_json` column was added to `cvs`): same story -- `CREATE TABLE IF NOT EXISTS` won't backfill the new column on a table that already exists. Run this once against remote before `npm run db:init`:
+
+```bash
+npx wrangler d1 execute resume-copilot --remote --command="ALTER TABLE cvs ADD COLUMN parsed_json TEXT;"
+```
+
+Skip this on a brand-new database -- `db:init`/`db:init:local` already creates `cvs` with `parsed_json` included.
+
 ## Custom domain
 
 **Required for sign-in** -- see "Sign-in" below: Cloudflare Access can only attach to a real Cloudflare zone, never `*.workers.dev`. This app is configured to deploy to **`resume.btopencloud.com`** (`wrangler.jsonc`'s `routes` entry).

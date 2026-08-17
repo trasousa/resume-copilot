@@ -50,8 +50,14 @@ export async function runApifyAtsSearch({ apiToken, watchlist }) {
 
   // Resolve each job's company by which watchlist URL prefixes its own
   // url -- e.g. a job at "https://boards.greenhouse.io/stripe/jobs/123"
-  // matches the watchlist entry "https://boards.greenhouse.io/stripe".
-  const companyFor = (jobUrl) => watchlist.find((w) => jobUrl?.startsWith(w.url))?.company || "";
+  // matches the watchlist entry "https://boards.greenhouse.io/stripe". If
+  // there's exactly one watchlist entry there's no ambiguity to resolve, so
+  // fall back to it directly -- otherwise an unresolved company must never
+  // reach the frontend as "", since that 400s the "Tailor Resume" action
+  // downstream (POST /api/applications requires a non-empty company).
+  const companyFor = (jobUrl) =>
+    watchlist.find((w) => jobUrl?.startsWith(w.url))?.company ||
+    (watchlist.length === 1 ? watchlist[0].company : "");
 
   const jobs = items
     .filter((item) => item?.url && item?.title)
@@ -63,7 +69,10 @@ export async function runApifyAtsSearch({ apiToken, watchlist }) {
       url: String(item.url),
       compEstimate: "",
       source: "ats",
-    }));
+    }))
+    // Drop jobs whose company couldn't be resolved rather than shipping an
+    // empty company field that breaks Tailor Resume downstream.
+    .filter((job) => job.company);
 
   return { jobs, error: null };
 }

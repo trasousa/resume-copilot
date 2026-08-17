@@ -58,13 +58,22 @@ router.post("/search", async (c) => {
     `scoring. The "url" must be a real URL from your search results -- omit a ` +
     `job from the JSON entirely rather than inventing a URL.`;
 
-  const [{ text, sources }, atsResult] = await Promise.all([
+  const [webResult, atsResult] = await Promise.allSettled([
     runWebSearchTask({ env: c.env, stable, prompt, location: { city, region, country } }),
     runApifyAtsSearch({
       apiToken: c.env.APIFY_API_TOKEN,
       watchlist: parseWatchlist(c.env),
     }),
   ]);
+
+  // A web-search failure shouldn't take down the whole request when the
+  // deterministic ATS source succeeded -- degrade to empty text/sources and
+  // surface the error via atsError-style reporting instead of throwing.
+  const webFailed = webResult.status === "rejected";
+  const { text, sources } = webFailed ? { text: "", sources: [] } : webResult.value;
+  const webError = webFailed ? `Web search failed: ${webResult.reason?.message || webResult.reason}` : null;
+
+  const ats = atsResult.status === "fulfilled" ? atsResult.value : { jobs: [], error: `ATS search failed: ${atsResult.reason?.message || atsResult.reason}` };
 
   // Merge the ATS-sourced jobs into the same JOBS block the frontend
   // already parses, deduplicated by URL so a job both sources happen to
@@ -75,12 +84,16 @@ router.post("/search", async (c) => {
     try { webJobs = JSON.parse(jobsMatch[1]); } catch { webJobs = []; }
   }
   const seenUrls = new Set(webJobs.map((j) => j.url));
-  const mergedJobs = [...webJobs, ...atsResult.jobs.filter((j) => !seenUrls.has(j.url))];
+  const mergedJobs = [...webJobs, ...ats.jobs.filter((j) => !seenUrls.has(j.url))];
   const mergedText = jobsMatch
-    ? text.replace(jobsMatch[0], "```JOBS\n" + JSON.stringify(mergedJobs, null, 2) + "\n```")
-    : text;
+    ? text.replace(jobsMatch[0], () => "```JOBS\n" + JSON.stringify(mergedJobs, null, 2) + "\n```")
+    : ats.jobs.length
+      ? text + "\n\n```JOBS\n" + JSON.stringify(ats.jobs, null, 2) + "\n```"
+      : text;
 
-  return c.json({ text: mergedText, sources, atsError: atsResult.error });
+  const atsError = [webError, ats.error].filter(Boolean).join(" ") || null;
+
+  return c.json({ text: mergedText, sources, atsError });
 });
 
 export default router;

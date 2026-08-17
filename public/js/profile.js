@@ -57,9 +57,18 @@ async function parseAndPreview(cvId) {
   }
 
   document.getElementById("stepBody").innerHTML = `<div id="resumePreview"></div>`;
+  let renderFailed = false;
   if (parsedJson) {
-    renderResumeView(document.getElementById("resumePreview"), parsedJson);
-  } else {
+    try {
+      renderResumeView(document.getElementById("resumePreview"), parsedJson);
+    } catch {
+      // A malformed parsed-resume shape (e.g. non-string link/bullet) must
+      // not strand the user mid-onboarding -- degrade to the same fallback
+      // message used when there's no parsedJson at all.
+      renderFailed = true;
+    }
+  }
+  if (!parsedJson || renderFailed) {
     document.getElementById("resumePreview").innerHTML =
       `<p class="muted">We saved your resume, but couldn't generate a structured preview. You can still continue.</p>`;
   }
@@ -195,7 +204,7 @@ async function renderSettled(cvs) {
     </div>
     <div class="card" style="border-color: var(--danger);">
       <h2 style="color: var(--danger);">Danger zone</h2>
-      <p class="muted">Permanently delete your resume, applications, generated documents, and preferences. This cannot be undone.</p>
+      <p class="muted">This deletes ALL data in this instance — every resume, application, generated document, and preference, for everyone with access. It cannot be undone.</p>
       <label>Type DELETE to confirm</label>
       <input type="text" id="deleteConfirmInput" placeholder="DELETE" />
       <button class="btn danger" id="deleteAccountBtn" style="margin-top:12px;" disabled>Delete my account</button>
