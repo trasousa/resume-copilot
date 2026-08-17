@@ -527,3 +527,10 @@ mark.kw-highlight { background: var(--advocate-success-soft); color: var(--advoc
   background: none; border: none; text-align: left; cursor: pointer; font-family: inherit;
 }
 .avatar-menu a:hover, .avatar-menu button:hover { background: var(--advocate-surface-container-low); }
+
+.resume-view {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px; max-height: 420px; overflow-y: auto;
+}
+.resume-view h3 { margin: 16px 0 8px; }
+.resume-view h3:first-of-type { margin-top: 4px; }

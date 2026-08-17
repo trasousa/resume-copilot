@@ -1,5 +1,6 @@
 import { api, escapeHtml, renderNav, showError } from "./app.js";
 import { icon } from "./icons.js";
+import { renderResumeView } from "./resume-view.js";
 
 renderNav("profile.html");
 
@@ -42,6 +43,35 @@ function renderOnboarding() {
   else renderStep3();
 }
 
+async function parseAndPreview(cvId) {
+  const status = document.getElementById("uploadStatus");
+  if (status) status.innerHTML = `<span class="spinner"></span> reading your resume…`;
+  document.getElementById("stepBody").innerHTML = `<p class="muted"><span class="spinner"></span> Parsing your resume…</p>`;
+  let parsedJson = null;
+  try {
+    const result = await api(`/cvs/${cvId}/parse`, { method: "POST" });
+    parsedJson = result.parsedJson;
+  } catch {
+    // Parsing is a nice-to-have preview, not a hard requirement -- fall
+    // through to manual continue below even if it failed.
+  }
+
+  document.getElementById("stepBody").innerHTML = `<div id="resumePreview"></div>`;
+  if (parsedJson) {
+    renderResumeView(document.getElementById("resumePreview"), parsedJson);
+  } else {
+    document.getElementById("resumePreview").innerHTML =
+      `<p class="muted">We saved your resume, but couldn't generate a structured preview. You can still continue.</p>`;
+  }
+
+  const footer = document.getElementById("wizardFooter");
+  const cont = document.createElement("button");
+  cont.className = "btn";
+  cont.textContent = "Looks good — continue";
+  cont.onclick = () => { step = 2; renderOnboarding(); };
+  footer.insertBefore(cont, document.getElementById("skipBtn"));
+}
+
 function renderStep1() {
   document.getElementById("stepTitle").textContent = "Welcome to Resume Copilot. Let's build your profile.";
   document.getElementById("stepSubtitle").textContent = "We'll use this information to tailor your resume and find the perfect match.";
@@ -71,9 +101,8 @@ function renderStep1() {
       const form = new FormData();
       form.append("file", file);
       form.append("isMaster", "true");
-      await api("/cvs/upload", { method: "POST", body: form });
-      step = 2;
-      renderOnboarding();
+      const cv = await api("/cvs/upload", { method: "POST", body: form });
+      await parseAndPreview(cv.id);
     } catch (err) {
       status.textContent = "";
       showError(main, err);
@@ -84,9 +113,8 @@ function renderStep1() {
     const content = prompt("Paste your resume text (you can format/improve it later in CV Store):");
     if (!content?.trim()) return;
     try {
-      await api("/cvs", { method: "POST", body: { label: "My resume", content, isMaster: true } });
-      step = 2;
-      renderOnboarding();
+      const cv = await api("/cvs", { method: "POST", body: { label: "My resume", content, isMaster: true } });
+      await parseAndPreview(cv.id);
     } catch (err) {
       showError(main, err);
     }
