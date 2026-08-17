@@ -539,3 +539,14 @@ mark.kw-highlight { background: var(--advocate-success-soft); color: var(--advoc
   font-size: 12px; font-style: italic; color: var(--ink-soft); opacity: 0.8;
   margin-bottom: 4px; white-space: pre-wrap; max-height: 60px; overflow-y: auto;
 }
+
+.outreach-callout {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 16px; padding: 12px 14px; border-radius: var(--radius);
+  background: var(--advocate-primary-container); color: var(--advocate-primary);
+  text-decoration: none; font-size: 13.5px; line-height: 1.4;
+  border: 1px solid var(--advocate-primary-container);
+  transition: background-color 0.15s ease;
+}
+.outreach-callout:hover { background: var(--advocate-surface-container-high); }
+.outreach-callout strong { display: block; margin-top: 2px; }
