@@ -2,8 +2,22 @@ import { Hono } from "hono";
 import * as db from "../lib/db.js";
 import { buildSkillPrompt, SKILL_ROUTES } from "../lib/skills.js";
 import { runWebSearchTask } from "../lib/llm.js";
+import { runApifyAtsSearch } from "../lib/apify.js";
 
 const router = new Hono();
+
+// APIFY_WATCHLIST is a JSON array of {"url","company"} objects -- which
+// companies' ATS career pages to scrape. A personal curation list, kept in
+// an env var (not hardcoded) so it's editable per-deployment. Malformed or
+// unset -> empty list -> the ATS source silently contributes nothing.
+function parseWatchlist(env) {
+  try {
+    const parsed = JSON.parse(env.APIFY_WATCHLIST || "[]");
+    return Array.isArray(parsed) ? parsed.filter((w) => w?.url && w?.company) : [];
+  } catch {
+    return [];
+  }
+}
 
 router.post("/search", async (c) => {
   const { cvId, city, region, country, remote, minComp, notes } =
@@ -44,14 +58,29 @@ router.post("/search", async (c) => {
     `scoring. The "url" must be a real URL from your search results -- omit a ` +
     `job from the JSON entirely rather than inventing a URL.`;
 
-  const { text, sources } = await runWebSearchTask({
-    env: c.env,
-    stable,
-    prompt,
-    location: { city, region, country },
-  });
+  const [{ text, sources }, atsResult] = await Promise.all([
+    runWebSearchTask({ env: c.env, stable, prompt, location: { city, region, country } }),
+    runApifyAtsSearch({
+      apiToken: c.env.APIFY_API_TOKEN,
+      watchlist: parseWatchlist(c.env),
+    }),
+  ]);
 
-  return c.json({ text, sources });
+  // Merge the ATS-sourced jobs into the same JOBS block the frontend
+  // already parses, deduplicated by URL so a job both sources happen to
+  // find isn't shown twice.
+  const jobsMatch = text.match(/```JOBS\n([\s\S]*?)\n```/);
+  let webJobs = [];
+  if (jobsMatch) {
+    try { webJobs = JSON.parse(jobsMatch[1]); } catch { webJobs = []; }
+  }
+  const seenUrls = new Set(webJobs.map((j) => j.url));
+  const mergedJobs = [...webJobs, ...atsResult.jobs.filter((j) => !seenUrls.has(j.url))];
+  const mergedText = jobsMatch
+    ? text.replace(jobsMatch[0], "```JOBS\n" + JSON.stringify(mergedJobs, null, 2) + "\n```")
+    : text;
+
+  return c.json({ text: mergedText, sources, atsError: atsResult.error });
 });
 
 export default router;

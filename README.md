@@ -95,6 +95,10 @@ npx wrangler secret put GOOGLE_API_KEY   # or GOOGLE_API_KEY in .dev.vars locall
 
 Both providers implement the same three-function interface (`src/lib/llm.js` picks between `src/lib/anthropic.js` and `src/lib/gemini.js`), so nothing else about the app changes -- same routes, same streaming chat, same job-search grounding (Gemini's built-in Google Search tool stands in for Anthropic's `web_search`). You only need the one API key for whichever provider is active; the other is never read.
 
+## Job search: ATS watchlist (optional)
+
+Job Search's primary source is always LLM-driven web search (above). Optionally, it can also pull from [Apify](https://apify.com)'s `fantastic-jobs/jobs-scraper` actor, which reads ATS platforms' own public APIs (Greenhouse, Lever, Ashby, Workday, and others) directly rather than relying on an LLM to find and interpret search results. This is **not a live search** -- the actor takes an explicit list of company career-page URLs (`startUrls`) and scrapes exactly those companies, so it only ever returns openings from companies you've told it to track. To enable it: get a token at [console.apify.com/settings/integrations](https://console.apify.com/settings/integrations) and set `APIFY_API_TOKEN` (`npx wrangler secret put APIFY_API_TOKEN`, or `APIFY_API_TOKEN` in `.dev.vars` locally), then set `APIFY_WATCHLIST` to a JSON array of `{"url","company"}` pairs -- one per company you want tracked, e.g. `[{"url":"https://boards.greenhouse.io/stripe","company":"Stripe"}]`. Building that list means finding each company's own Greenhouse/Lever/Ashby/Workday careers page URL and adding it yourself; there's no way to discover new companies through this source, only to track ones you already picked. Leaving `APIFY_API_TOKEN` or `APIFY_WATCHLIST` unset skips this source entirely -- job search still works with web search alone, and results merge into the same list (jobs found via the ATS source are tagged with an "ATS listing" pill in the UI).
+
 ## Deploy
 
 ```bash
