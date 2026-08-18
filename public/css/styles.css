@@ -468,8 +468,8 @@ dialog .card { box-shadow: none; border: none; margin: 0; }
 }
 @media (max-width: 700px) {
   .ledger-line { border-top-width: 1px; }
-  .ledger-item { flex: 1 1 40%; margin-right: 0; padding: 10px 12px; }
-  .ledger-item + .ledger-item { border-left: none; border-top: 1px solid var(--border); padding-left: 12px; }
+  .ledger-item { flex: 1 1 40%; margin-right: 0; padding: 10px 12px; border-left: none !important; padding-left: 12px !important; }
+  .ledger-item:nth-child(n+3) { border-top: 1px solid var(--border); }
 }
 
 header.topbar { padding: 12px 28px; gap: 24px; }

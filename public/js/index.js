@@ -85,8 +85,12 @@ function renderStats(apps, stats) {
 /** Computes the masthead <h1> text -- a real sentence describing current
  * state, not a static page title. Mirrors how an editorial masthead
  * states the day's actual news rather than a fixed banner. */
-function renderMastheadStatement(apps, stats) {
+function renderMastheadStatement(apps, stats, appsLoadFailed) {
   const el = document.getElementById("mastheadStatement");
+  if (appsLoadFailed) {
+    el.textContent = "Couldn't load your applications.";
+    return;
+  }
   if (stats.total === 0) {
     el.textContent = "No applications tracked yet.";
     return;
@@ -105,15 +109,17 @@ function renderMastheadStatement(apps, stats) {
 
 async function load() {
   let apps = [];
+  let appsLoadFailed = false;
   try {
     apps = await api("/applications");
   } catch (err) {
+    appsLoadFailed = true;
     showError(document.querySelector("main"), err);
   }
 
   const stats = await api("/applications/stats").catch(() => ({ total: apps.length, interviews: 0, offers: 0, avgMatch: null }));
   renderStats(apps, stats);
-  renderMastheadStatement(apps, stats);
+  renderMastheadStatement(apps, stats, appsLoadFailed);
 
   const stale = apps.filter((a) => isStale(a) && !["offer", "rejected", "withdrawn"].includes(a.stage));
   staleNotice.innerHTML = stale.length
