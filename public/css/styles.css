@@ -435,21 +435,42 @@ dialog .card { box-shadow: none; border: none; margin: 0; }
 .match-badge.mid  { background: var(--rc-primary-container); color: var(--rc-primary); }
 .match-badge.low  { background: var(--danger-soft); color: var(--danger); }
 
-.stat-tile {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 18px 20px; box-shadow: var(--shadow);
+.ledger-line {
+  display: flex;
+  flex-wrap: wrap;
+  border-top: 2px solid var(--ink);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 28px;
 }
-.stat-tile .row.between { margin-bottom: 14px; }
-.stat-tile .stat-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
-.stat-tile .stat-icon {
-  width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  background: var(--rc-surface-container); color: var(--rc-primary);
+.ledger-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 14px 24px 14px 0;
+  margin-right: 24px;
 }
-.stat-tile .stat-value { font-family: var(--font-display); font-size: 32px; font-weight: 700; line-height: 1; }
-.stat-tile .stat-sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; }
-
-.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
-@media (max-width: 900px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+.ledger-item + .ledger-item {
+  border-left: 1px solid var(--border);
+  padding-left: 24px;
+}
+.ledger-item .ledger-value {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1;
+}
+.ledger-item .ledger-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+@media (max-width: 700px) {
+  .ledger-line { border-top-width: 1px; }
+  .ledger-item { flex: 1 1 40%; margin-right: 0; padding: 10px 12px; border-left: none !important; padding-left: 12px !important; }
+  .ledger-item:nth-child(n+3) { border-top: 1px solid var(--border); }
+}
 
 header.topbar { padding: 12px 28px; gap: 24px; }
 .brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--rc-primary); text-decoration: none; }

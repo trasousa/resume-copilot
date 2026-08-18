@@ -75,41 +75,51 @@ function isStale(app) {
 }
 
 function renderStats(apps, stats) {
+  document.getElementById("statTiles").innerHTML = `
+    <div class="ledger-item"><span class="ledger-value">${stats.total}</span><span class="ledger-label">Total</span></div>
+    <div class="ledger-item"><span class="ledger-value">${stats.interviews}</span><span class="ledger-label">Interviews</span></div>
+    <div class="ledger-item"><span class="ledger-value">${stats.offers}</span><span class="ledger-label">Offers</span></div>
+    <div class="ledger-item"><span class="ledger-value">${stats.avgMatch != null ? stats.avgMatch + "%" : "—"}</span><span class="ledger-label">Avg match</span></div>`;
+}
+
+/** Computes the masthead <h1> text -- a real sentence describing current
+ * state, not a static page title. Mirrors how an editorial masthead
+ * states the day's actual news rather than a fixed banner. */
+function renderMastheadStatement(apps, stats, appsLoadFailed) {
+  const el = document.getElementById("mastheadStatement");
+  if (appsLoadFailed) {
+    el.textContent = "Couldn't load your applications.";
+    return;
+  }
+  if (stats.total === 0) {
+    el.textContent = "No applications tracked yet.";
+    return;
+  }
   const interviewsActive = apps.filter((a) => a.stage === "interview").length;
   const offersPending = apps.filter((a) => a.stage === "offer").length;
-  document.getElementById("statTiles").innerHTML = `
-    <div class="stat-tile">
-      <div class="row between"><span class="stat-label">Total</span><span class="stat-icon">${icon("list")}</span></div>
-      <div class="stat-value">${stats.total}</div>
-      <div class="stat-sub">Across every stage</div>
-    </div>
-    <div class="stat-tile">
-      <div class="row between"><span class="stat-label">Interviews</span><span class="stat-icon">${icon("mail")}</span></div>
-      <div class="stat-value">${stats.interviews}</div>
-      <div class="stat-sub">${interviewsActive} active</div>
-    </div>
-    <div class="stat-tile">
-      <div class="row between"><span class="stat-label">Offers</span><span class="stat-icon">${icon("sparkle")}</span></div>
-      <div class="stat-value">${stats.offers}</div>
-      <div class="stat-sub">${offersPending ? "Pending review" : "None yet"}</div>
-    </div>
-    <div class="stat-tile">
-      <div class="row between"><span class="stat-label">Avg Match</span><span class="stat-icon">${icon("search")}</span></div>
-      <div class="stat-value">${stats.avgMatch != null ? stats.avgMatch + "%" : "—"}</div>
-      <div class="stat-sub">${stats.avgMatch != null ? (stats.avgMatch >= 80 ? "Solid alignment" : "Room to improve") : "Tailor a CV to see this"}</div>
-    </div>`;
+
+  let statement = `${stats.total} application${stats.total === 1 ? "" : "s"} tracked.`;
+  if (interviewsActive > 0) {
+    statement += ` ${interviewsActive} moving through interview${interviewsActive === 1 ? "" : "s"}.`;
+  } else if (offersPending > 0) {
+    statement += ` ${offersPending} offer${offersPending === 1 ? "" : "s"} on the table.`;
+  }
+  el.textContent = statement;
 }
 
 async function load() {
   let apps = [];
+  let appsLoadFailed = false;
   try {
     apps = await api("/applications");
   } catch (err) {
+    appsLoadFailed = true;
     showError(document.querySelector("main"), err);
   }
 
   const stats = await api("/applications/stats").catch(() => ({ total: apps.length, interviews: 0, offers: 0, avgMatch: null }));
   renderStats(apps, stats);
+  renderMastheadStatement(apps, stats, appsLoadFailed);
 
   const stale = apps.filter((a) => isStale(a) && !["offer", "rejected", "withdrawn"].includes(a.stage));
   staleNotice.innerHTML = stale.length
