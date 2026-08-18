@@ -75,9 +75,13 @@ This app uses [Cloudflare Workers AI](https://developers.cloudflare.com/workers-
 
 ## Job search
 
-Job Search's only source is [Arbeitnow](https://www.arbeitnow.com)'s public job board API (`src/lib/arbeitnow.js`) -- free, no signup, no API key. It aggregates real postings from ATS platforms (Greenhouse, SmartRecruiters, and others), updated hourly. No config is needed to use it: it's called with zero setup, works the moment you deploy or run `npm run dev`.
+Job Search combines three free sources, run concurrently:
 
-The API has no server-side keyword/location search, so filtering by your requested city/region/country or "remote" preference happens in `fetchArbeitnowJobs` after fetching a few pages of recent postings (up to 40 matches, or 3 pages, whichever comes first). Coverage skews European/tech, since that's where Arbeitnow's own listings are strongest -- a niche role/location combo can come up thin.
+- **[Arbeitnow](https://www.arbeitnow.com)** (`src/lib/arbeitnow.js`) -- free, no key. Germany/UK-heavy on-site + some remote postings, aggregated from Greenhouse/SmartRecruiters/etc, updated hourly. No server-side search, so city/region/country/remote filtering happens in-app after fetching.
+- **[Himalayas](https://himalayas.app)** (`src/lib/himalayas.js`) -- free, no key. Global remote-only postings with real keyword+country search and salary data when disclosed.
+- **[OpenWebNinja JSearch](https://www.openwebninja.com)** (`src/lib/jsearch.js`) -- optional, needs `OPENWEBNINJA_API_KEY`. Aggregates LinkedIn, Indeed, Glassdoor, ZipRecruiter, and other public boards via Google for Jobs. **Free tier is 200 requests/month** -- each user-initiated search costs exactly one JSearch request, so budget accordingly. Job Search works fine without this key set; you just lose that source's results.
+
+Results from all three are deduplicated (`src/lib/jobdedup.js`, matched by normalized company + title + location/remote) before Workers AI ranks the merged list against your CV. Search progress streams to the page as each source resolves, rather than waiting for all three before showing anything.
 
 ## Deploy
 
