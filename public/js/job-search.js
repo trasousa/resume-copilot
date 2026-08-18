@@ -53,6 +53,24 @@ function saveProfileFromForm() {
   }).catch(() => {});
 }
 
+const SOURCE_LABELS = { arbeitnow: "Arbeitnow", himalayas: "Himalayas", jsearch: "LinkedIn/Indeed/Glassdoor" };
+const progressEl = document.getElementById("searchProgress");
+
+function renderProgressRow(source, status, extra) {
+  let row = progressEl.querySelector(`[data-source="${source}"]`);
+  if (!row) {
+    row = document.createElement("span");
+    row.className = "source-row";
+    row.dataset.source = source;
+    progressEl.appendChild(row);
+  }
+  row.className = `source-row ${status}`;
+  const label = SOURCE_LABELS[source] || source;
+  if (status === "searching") row.innerHTML = `<span class="spinner"></span> ${escapeHtml(label)}`;
+  else if (status === "done") row.textContent = `${label}: ${extra} found`;
+  else row.textContent = `${label}: unavailable`;
+}
+
 document.getElementById("searchBtn").onclick = async () => {
   const cvId = cvSelect.value;
   if (!cvId) return alert("Add a CV first (CV Store tab).");
@@ -62,12 +80,15 @@ document.getElementById("searchBtn").onclick = async () => {
   const country = document.getElementById("country").value.trim();
   if (!remote && !city && !region && !country) return alert("Enter a location, or check 'remote'.");
 
-  statusEl.innerHTML = `<span class="spinner"></span> searching open roles — this can take a bit…`;
+  statusEl.textContent = "";
+  progressEl.innerHTML = "";
   resultEl.innerHTML = "";
+
   try {
-    const data = await api("/jobsearch/search", {
+    const res = await fetch("/api/jobsearch/search", {
       method: "POST",
-      body: {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         cvId,
         city,
         region,
@@ -75,14 +96,50 @@ document.getElementById("searchBtn").onclick = async () => {
         remote,
         minComp: document.getElementById("minComp").value.trim(),
         notes: [document.getElementById("notes").value.trim(), selectedJobTypes().length ? `Job type preference: ${selectedJobTypes().join(", ")}` : ""].filter(Boolean).join(". "),
-      },
+      }),
     });
+
+    if (!res.ok) {
+      let error;
+      try {
+        error = (await res.json()).error;
+      } catch {
+        if (res.status === 401) error = "Your session expired. Reload the page to sign in again.";
+      }
+      throw new Error(error || `Request failed (${res.status})`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalData = null;
+
+    while (true) {
+      const { done: streamDone, value } = await reader.read();
+      if (streamDone) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+
+      for (const frame of frames) {
+        const event = frame.match(/^event: (.+)$/m)?.[1];
+        const dataLine = frame.match(/^data: (.+)$/m)?.[1];
+        if (!event || !dataLine) continue;
+
+        const data = JSON.parse(dataLine);
+        if (event === "source") {
+          renderProgressRow(data.source, data.status, data.status === "done" ? data.count : data.message);
+        } else if (event === "complete") {
+          finalData = data;
+        }
+      }
+    }
+
     saveProfileFromForm();
-    render(data, cvId);
+    if (finalData) render(finalData, cvId);
   } catch (err) {
     showError(main, err);
-  } finally {
-    statusEl.textContent = "";
   }
 };
 
@@ -95,7 +152,7 @@ function render(data, cvId) {
       <h2>Results</h2>
       <div class="doc-content">${escapeHtml(analysisText)}</div>
     </div>
-    ${data.searchError ? `<div class="error-banner" style="background:var(--warn-soft); color:var(--warn);">Job search failed this time (${escapeHtml(data.searchError)}).</div>` : ""}
+    ${data.rankingError ? `<div class="error-banner" style="background:var(--warn-soft); color:var(--warn);">Ranking failed this time (${escapeHtml(data.rankingError)}); showing unranked results.</div>` : ""}
     ${
       jobs.length
         ? `<div class="job-grid">${jobs
