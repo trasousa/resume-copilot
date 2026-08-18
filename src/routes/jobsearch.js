@@ -33,7 +33,7 @@ router.post("/search", async (c) => {
           send("source", r.error ? { source: "arbeitnow", status: "error", message: r.error } : { source: "arbeitnow", status: "done", count: r.jobs.length });
           return r;
         }),
-        fetchHimalayasJobs({ query, country: remote ? "" : (city || region || country) }).then((r) => {
+        fetchHimalayasJobs({ query, country: remote ? "" : country }).then((r) => {
           send("source", r.error ? { source: "himalayas", status: "error", message: r.error } : { source: "himalayas", status: "done", count: r.jobs.length });
           return r;
         }),
