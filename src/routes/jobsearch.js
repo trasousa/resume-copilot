@@ -92,6 +92,18 @@ router.post("/search", async (c) => {
         return;
       }
 
+      // Cap before ranking -- merging 3 sources can return up to ~70+ raw
+      // jobs (vs. the single-source ~40 cap this ranking prompt's token
+      // budget was originally sized for). Asking the model to emit ranked
+      // JSON with an added matchScore/fitNote per job for the full merged
+      // set reliably blows the output budget: the JSON truncates mid-object
+      // (fails to parse, silently falls back to the full unranked list) or
+      // truncates before the closing fence entirely (the extraction regex
+      // fails outright and the raw ```RANKED block leaks into the visible
+      // summary text instead of being stripped). 30 keeps the prompt well
+      // within budget while still showing a generous result set.
+      const rankingCandidates = merged.slice(0, 30);
+
       // Rank the real, already-found listings against the candidate's CV --
       // a plain LLM call (no search capability needed), which Workers AI
       // handles fine; it's live web search specifically that Workers AI lacks.
@@ -110,7 +122,7 @@ router.post("/search", async (c) => {
         `Target location: ${locationLine || "any"}\n` +
         (minComp ? `Minimum target compensation: ${minComp}\n` : "") +
         (notes ? `Additional preferences: ${notes}\n` : "") +
-        `\nJob postings found:\n${JSON.stringify(merged, null, 2)}\n\n` +
+        `\nJob postings found:\n${JSON.stringify(rankingCandidates, null, 2)}\n\n` +
         `Return two things:\n` +
         `1. A short markdown summary (2-4 sentences) of the overall fit of this batch.\n` +
         `2. A fenced block starting with \`\`\`RANKED and ending with \`\`\` containing ` +
@@ -118,9 +130,9 @@ router.post("/search", async (c) => {
         `"matchScore" (integer 0-100) and "fitNote" (one sentence) field.`;
 
       try {
-        const { text } = await runTask({ env: c.env, stable, prompt, maxTokens: 4000 });
+        const { text } = await runTask({ env: c.env, stable, prompt, maxTokens: 8000 });
 
-        let rankedJobs = merged;
+        let rankedJobs = rankingCandidates;
         const rankedMatch = text.match(/```RANKED\n([\s\S]*?)\n```/);
         if (rankedMatch) {
           try {
@@ -134,7 +146,7 @@ router.post("/search", async (c) => {
         const summary = text.replace(/```RANKED\n[\s\S]*?\n```/, "").trim();
         send("complete", { text: summary, jobs: rankedJobs });
       } catch (err) {
-        send("complete", { text: "", jobs: merged, rankingError: err.message });
+        send("complete", { text: "", jobs: rankingCandidates, rankingError: err.message });
       }
 
       controller.close();
