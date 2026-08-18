@@ -60,7 +60,7 @@ header.topbar {
   justify-content: space-between;
   padding: 16px 28px;
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--ink);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -69,7 +69,7 @@ header.topbar {
 header.topbar .brand {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 19px;
+  font-size: 20px;
   letter-spacing: 0.01em;
 }
 
@@ -95,7 +95,26 @@ main {
 }
 
 h1 { font-family: var(--font-display); font-size: 27px; font-weight: 600; margin: 0 0 6px; letter-spacing: 0.002em; }
-h2 { font-family: var(--font-display); font-size: 18px; font-weight: 600; margin: 0 0 10px; }
+h2 { font-family: var(--font-display); font-size: 18px; font-weight: 600; margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+/* h2 inside a <summary> (collapsible card headers on Tailor Studio) is
+   rendered inline so it sits next to the disclosure triangle -- a
+   full-width border-bottom on an inline element renders broken, so this
+   context opts out of the rule entirely. */
+summary h2 { border-bottom: none; padding-bottom: 0; }
+
+/* h2 used as a heading WITHIN rendered document/markdown content (a CV
+   body, chat replies, LLM analysis text) is content typography, not app
+   chrome -- it must not carry the same section-divider treatment as a
+   real page/card section header. */
+.cv-doc h2, .doc-content h2, .markdown-body h2 { border-bottom: none; padding-bottom: 0; }
+
+/* Small in-card titles that repeat per list item (a job card's title, a
+   parsed résumé's name heading) are content within a card, not a section
+   header dividing the card from what comes after it -- opt out the same
+   way, and consolidate what used to be an ad-hoc inline margin override
+   into one reusable class. */
+.card-title { margin: 0 0 2px; border-bottom: none; padding-bottom: 0; }
 p.subtitle { color: var(--ink-soft); margin: 0 0 24px; font-size: 14.5px; }
 
 /* One staggered reveal on load -- cards and the document view ease in

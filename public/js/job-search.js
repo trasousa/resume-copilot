@@ -166,7 +166,7 @@ function render(data, cvId) {
           <div class="card job-card">
             <div class="row between">
               <div>
-                <h2 style="margin-bottom:2px;">${escapeHtml(j.title)}</h2>
+                <h2 class="card-title">${escapeHtml(j.title)}</h2>
                 <p class="muted" style="margin:0;">${escapeHtml(j.company)}</p>
               </div>
               ${j.matchScore != null ? `<span class="match-badge ${j.matchScore >= 80 ? "high" : j.matchScore >= 50 ? "mid" : "low"}">${j.matchScore}% MATCH</span>` : ""}
