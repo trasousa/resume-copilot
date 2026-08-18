@@ -83,7 +83,7 @@ document.getElementById("searchBtn").onclick = async () => {
   const searchBtn = document.getElementById("searchBtn");
   searchBtn.disabled = true;
 
-  statusEl.textContent = "";
+  statusEl.textContent = "Searching three sources and ranking matches — this can take up to two minutes.";
   progressEl.innerHTML = "";
   resultEl.innerHTML = "";
 
@@ -144,6 +144,7 @@ document.getElementById("searchBtn").onclick = async () => {
   } catch (err) {
     showError(main, err);
   } finally {
+    statusEl.textContent = "";
     searchBtn.disabled = false;
   }
 };
