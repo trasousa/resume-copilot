@@ -107,7 +107,7 @@ summary h2 { border-bottom: none; padding-bottom: 0; }
    body, chat replies, LLM analysis text) is content typography, not app
    chrome -- it must not carry the same section-divider treatment as a
    real page/card section header. */
-.cv-doc h2, .doc-content h2, .markdown-body h2 { border-bottom: none; padding-bottom: 0; }
+.cv-doc h2, .doc-content h2, .markdown-body h2, .assistant-note h2 { border-bottom: none; padding-bottom: 0; }
 
 /* Small in-card titles that repeat per list item (a job card's title, a
    parsed résumé's name heading) are content within a card, not a section
