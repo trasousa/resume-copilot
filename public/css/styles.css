@@ -576,3 +576,9 @@ details.card[open] summary::before { transform: rotate(90deg); }
 
 .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
 @media (max-width: 1100px) { .compare-grid { grid-template-columns: 1fr; } }
+
+.search-progress { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.search-progress:empty { display: none; }
+.source-row { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--bg); font-size: 13px; color: var(--ink-soft); }
+.source-row.done { color: var(--ink); }
+.source-row.error { color: var(--warn); }
