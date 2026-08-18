@@ -22,14 +22,14 @@ function renderOnboarding() {
         <div class="row between">
           <span class="pill">Step ${step} of 3</span>
           <div class="row" style="gap: 4px;">
-            ${[1, 2, 3].map((n) => `<span style="width:32px;height:4px;border-radius:2px;background:${n <= step ? "var(--advocate-primary)" : "var(--advocate-outline-variant)"};"></span>`).join("")}
+            ${[1, 2, 3].map((n) => `<span style="width:32px;height:4px;border-radius:2px;background:${n <= step ? "var(--rc-primary)" : "var(--rc-outline-variant)"};"></span>`).join("")}
           </div>
         </div>
         <h1 id="stepTitle" style="margin-top: 14px;"></h1>
         <p class="subtitle" id="stepSubtitle" style="margin-bottom: 0;"></p>
       </div>
       <div style="padding: 28px;" id="stepBody"></div>
-      <div class="row between" id="wizardFooter" style="padding: 16px 28px; border-top: 1px solid var(--border); background: var(--advocate-surface-container-low);">
+      <div class="row between" id="wizardFooter" style="padding: 16px 28px; border-top: 1px solid var(--border); background: var(--rc-surface-container-low);">
         <button class="btn secondary" id="backBtn" ${step === 1 ? "disabled" : ""}>Back</button>
         <button class="btn secondary" id="skipBtn">Skip for now</button>
       </div>

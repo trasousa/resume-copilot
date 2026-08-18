@@ -58,7 +58,7 @@ export function renderResumeView(container, parsed) {
   container.innerHTML = `
     <div class="resume-view">
       <h2 class="card-title">${escapeHtml(parsed.name || "")}</h2>
-      ${parsed.title ? `<p style="color:var(--advocate-primary); font-weight:600; margin:0 0 6px;">${escapeHtml(parsed.title)}</p>` : ""}
+      ${parsed.title ? `<p style="color:var(--rc-primary); font-weight:600; margin:0 0 6px;">${escapeHtml(parsed.title)}</p>` : ""}
       <p class="muted" style="margin:0 0 14px;">
         ${[parsed.location, parsed.email, parsed.phone].filter(Boolean).map(escapeHtml).join(" · ")}
         ${links ? " · " + links : ""}
