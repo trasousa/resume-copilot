@@ -10,6 +10,42 @@ const router = new Hono();
 
 const SOURCES = ["arbeitnow", "himalayas", "jsearch"];
 
+// JSearch needs an ISO-2 country code; Himalayas matches on full country
+// names. The same user-typed `country` field can't satisfy both, so this
+// maps common names to codes for JSearch specifically -- Himalayas keeps
+// receiving the raw string unchanged. Falls back to treating the input as
+// an already-valid code (lowercased) if it's not in the map, so a user who
+// already typed "us"/"de"/etc. still works.
+const COUNTRY_NAME_TO_CODE = {
+  "united states": "us", "usa": "us", "us": "us",
+  "united kingdom": "gb", "uk": "gb", "great britain": "gb",
+  "germany": "de", "deutschland": "de",
+  "canada": "ca",
+  "france": "fr",
+  "spain": "es",
+  "italy": "it",
+  "netherlands": "nl",
+  "ireland": "ie",
+  "australia": "au",
+  "india": "in",
+  "brazil": "br",
+  "mexico": "mx",
+  "poland": "pl",
+  "portugal": "pt",
+  "sweden": "se",
+  "switzerland": "ch",
+  "austria": "at",
+  "belgium": "be",
+};
+
+function toJSearchCountryCode(country) {
+  const key = String(country || "").trim().toLowerCase();
+  if (!key) return "us";
+  if (COUNTRY_NAME_TO_CODE[key]) return COUNTRY_NAME_TO_CODE[key];
+  if (/^[a-z]{2}$/.test(key)) return key;
+  return "us";
+}
+
 router.post("/search", async (c) => {
   const { cvId, city, region, country, remote, minComp, notes } = await c.req.json();
 
@@ -17,8 +53,7 @@ router.post("/search", async (c) => {
   if (!cv)
     return c.json({ error: "No CV available. Upload or set a master CV first." }, 400);
 
-  const query = ["software", notes].filter(Boolean).join(" ").trim() || "jobs";
-  const countryCode = country || "us";
+  const query = "jobs";
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -37,9 +72,12 @@ router.post("/search", async (c) => {
           send("source", r.error ? { source: "himalayas", status: "error", message: r.error } : { source: "himalayas", status: "done", count: r.jobs.length });
           return r;
         }),
-        fetchJSearchJobs({ apiKey: c.env.OPENWEBNINJA_API_KEY, query, country: countryCode }).then((r) => {
+        (c.env.OPENWEBNINJA_API_KEY
+          ? fetchJSearchJobs({ apiKey: c.env.OPENWEBNINJA_API_KEY, query, country: toJSearchCountryCode(country) })
+          : Promise.resolve({ jobs: [], error: "not configured" })
+        ).then((r) => {
           send("source", r.error ? { source: "jsearch", status: "error", message: r.error } : { source: "jsearch", status: "done", count: r.jobs.length });
-          return r;
+          return r.error === "not configured" ? { jobs: [], error: null } : r;
         }),
       ]);
 

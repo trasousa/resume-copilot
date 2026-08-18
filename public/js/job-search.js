@@ -80,6 +80,9 @@ document.getElementById("searchBtn").onclick = async () => {
   const country = document.getElementById("country").value.trim();
   if (!remote && !city && !region && !country) return alert("Enter a location, or check 'remote'.");
 
+  const searchBtn = document.getElementById("searchBtn");
+  searchBtn.disabled = true;
+
   statusEl.textContent = "";
   progressEl.innerHTML = "";
   resultEl.innerHTML = "";
@@ -140,6 +143,8 @@ document.getElementById("searchBtn").onclick = async () => {
     if (finalData) render(finalData, cvId);
   } catch (err) {
     showError(main, err);
+  } finally {
+    searchBtn.disabled = false;
   }
 };
 
