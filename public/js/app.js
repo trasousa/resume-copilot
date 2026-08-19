@@ -97,7 +97,6 @@ export function safeUrl(url) {
 
 export function renderNav(active) {
   const links = [
-    ["job-search.html", "Search", "search"],
     ["tailor.html", "Tailor", "edit"],
     ["index.html", "Applications", "list"],
   ];

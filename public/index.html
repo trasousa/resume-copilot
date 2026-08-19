@@ -14,6 +14,42 @@
 
     <div id="statTiles" class="ledger-line"></div>
 
+    <details class="card" id="searchPane">
+      <summary><h2 style="display:inline;">Find roles</h2></summary>
+      <div id="searchPaneBody">
+        <label>CV to match against</label>
+        <select id="cvSelect"></select>
+
+        <div class="grid cols-3">
+          <div><label>City</label><input type="text" id="city" /></div>
+          <div><label>Region/State</label><input type="text" id="region" /></div>
+          <div><label>Country</label><input type="text" id="country" /></div>
+        </div>
+
+        <label><input type="checkbox" id="remote" style="width:auto; display:inline-block;" /> Include / prefer fully remote roles</label>
+
+        <label>Minimum target compensation (optional)</label>
+        <input type="text" id="minComp" placeholder="e.g. €80,000" />
+
+        <label>Other preferences (optional)</label>
+        <input type="text" id="notes" placeholder="e.g. prefer ML/data roles, avoid agencies" />
+
+        <label>Job type</label>
+        <div class="row" id="jobTypeChips">
+          <button type="button" class="chip active" data-type="full-time">Full-time</button>
+          <button type="button" class="chip" data-type="contract">Contract</button>
+          <button type="button" class="chip" data-type="remote">Remote</button>
+        </div>
+
+        <div class="row" style="margin-top:12px;">
+          <button class="btn" id="searchBtn">Search</button>
+          <span id="status" class="muted"></span>
+        </div>
+      </div>
+      <div id="searchProgress" class="search-progress"></div>
+      <div id="result"></div>
+    </details>
+
     <div id="staleNotice"></div>
 
     <div id="board" class="board"></div>

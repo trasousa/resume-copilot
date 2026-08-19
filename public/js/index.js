@@ -141,7 +141,7 @@ async function load() {
   const rejectedCount = apps.filter((a) => a.stage === "rejected" || a.stage === "withdrawn").length;
 
   if (apps.length === 0) {
-    board.innerHTML = `<div class="empty" style="grid-column: 1 / -1;">No applications yet. Click "+ New application", or find roles from the Job Search tab and save them here.</div>`;
+    board.innerHTML = `<div class="empty" style="grid-column: 1 / -1;">No applications yet. Click "+ New application", or expand "Find roles" above to search and save one here.</div>`;
     return;
   }
 
