@@ -288,8 +288,9 @@ input[type="file"]::file-selector-button:hover { background: var(--rc-surface-co
   margin-bottom: 8px;
   cursor: pointer;
 }
-.app-card, .job-card { transition: box-shadow 200ms ease, border-color 200ms ease; }
+.app-card, .job-card { transition: box-shadow 200ms ease, border-color 200ms ease, background-color 400ms ease; }
 .app-card:hover, .job-card:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(29, 78, 75, 0.08); }
+.app-card.just-saved { background-color: var(--rc-tag-green); border-color: var(--rc-tag-green-ink); }
 .app-card .company { font-weight: 600; font-size: 13.5px; }
 .app-card .role { font-size: 12.5px; color: var(--ink-soft); }
 .app-card .meta { font-size: 11.5px; color: var(--ink-soft); margin-top: 6px; }

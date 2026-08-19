@@ -168,11 +168,10 @@ function renderStep2() {
 
 function renderStep3() {
   document.getElementById("stepTitle").textContent = "You're all set.";
-  document.getElementById("stepSubtitle").textContent = "Head to Job Search to find roles, or Applications to see your tracker.";
+  document.getElementById("stepSubtitle").textContent = "Head to Applications to search for roles and track them.";
   document.getElementById("stepBody").innerHTML = `
     <div class="row" style="justify-content:center; gap: 12px; padding: 20px 0;">
-      <a class="btn" href="job-search.html">${icon("search")} Find jobs</a>
-      <a class="btn secondary" href="index.html">${icon("list")} Go to tracker</a>
+      <a class="btn" href="index.html">${icon("list")} Go to Applications</a>
     </div>`;
   document.getElementById("skipBtn").style.display = "none";
   document.getElementById("backBtn").style.display = "none";
