@@ -22,6 +22,19 @@
   --rc-on-surface: #1A1A18;
   --rc-on-surface-variant: #5C5A52;
   --rc-outline-variant: #D8D4C8;
+
+  /* Muted pastel tag system -- status chips, match badges, and pills use
+     these instead of the more saturated --warn/--danger/--success tokens,
+     which stay reserved for real alerts (error banners, destructive
+     actions) rather than routine status labels. */
+  --rc-tag-red: #FDEBEC;
+  --rc-tag-red-ink: #9F2F2D;
+  --rc-tag-blue: #E1F3FE;
+  --rc-tag-blue-ink: #1F6C9F;
+  --rc-tag-green: #EDF3EC;
+  --rc-tag-green-ink: #346538;
+  --rc-tag-yellow: #FBF3DB;
+  --rc-tag-yellow-ink: #956400;
 }
 
 :root {
@@ -219,8 +232,8 @@ input[type="file"]::file-selector-button:hover { background: var(--rc-surface-co
   color: var(--accent);
 }
 
-.pill.warn { background: var(--warn-soft); color: var(--warn); }
-.pill.danger { background: var(--danger-soft); color: var(--danger); }
+.pill.warn { background: var(--rc-tag-yellow); color: var(--rc-tag-yellow-ink); }
+.pill.danger { background: var(--rc-tag-red); color: var(--rc-tag-red-ink); }
 .pill.muted { background: var(--bg); color: var(--ink-soft); }
 
 .muted { color: var(--ink-soft); font-size: 13px; }
@@ -419,12 +432,12 @@ dialog .card { box-shadow: none; border: none; margin: 0; }
   background: var(--rc-surface-container); color: var(--rc-on-surface-variant);
 }
 .status-chip.saved     { background: var(--rc-surface-container); color: var(--rc-on-surface-variant); }
-.status-chip.applied   { background: var(--rc-primary-container); color: var(--rc-primary); }
-.status-chip.screening { background: var(--rc-primary-container); color: var(--rc-primary); }
-.status-chip.interview { background: var(--rc-warn-soft); color: var(--rc-warn); }
-.status-chip.offer     { background: var(--rc-success-soft); color: var(--rc-success); }
+.status-chip.applied   { background: var(--rc-tag-blue); color: var(--rc-tag-blue-ink); }
+.status-chip.screening { background: var(--rc-tag-blue); color: var(--rc-tag-blue-ink); }
+.status-chip.interview { background: var(--rc-tag-yellow); color: var(--rc-tag-yellow-ink); }
+.status-chip.offer     { background: var(--rc-tag-green); color: var(--rc-tag-green-ink); }
 .status-chip.rejected,
-.status-chip.withdrawn { background: var(--danger-soft); color: var(--danger); }
+.status-chip.withdrawn { background: var(--rc-tag-red); color: var(--rc-tag-red-ink); }
 
 .match-badge {
   display: inline-flex; align-items: center; gap: 4px;
@@ -432,9 +445,9 @@ dialog .card { box-shadow: none; border: none; margin: 0; }
   font-size: 12px; font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.match-badge.high { background: var(--rc-success-soft); color: var(--rc-success); }
-.match-badge.mid  { background: var(--rc-primary-container); color: var(--rc-primary); }
-.match-badge.low  { background: var(--danger-soft); color: var(--danger); }
+.match-badge.high { background: var(--rc-tag-green); color: var(--rc-tag-green-ink); }
+.match-badge.mid  { background: var(--rc-tag-yellow); color: var(--rc-tag-yellow-ink); }
+.match-badge.low  { background: var(--rc-tag-red); color: var(--rc-tag-red-ink); }
 
 .ledger-line {
   display: flex;
