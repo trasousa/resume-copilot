@@ -521,6 +521,17 @@ dialog .card { box-shadow: none; border: none; margin: 0; }
 
 #jobMap { height: 280px; border-radius: 10px; margin: 16px 0; overflow: hidden; }
 
+.table-wrap { overflow-x: auto; margin-top: 12px; }
+#compareTable { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+#compareTable th, #compareTable td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+#compareTable th { color: var(--ink-soft); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; cursor: pointer; user-select: none; }
+#compareTable th:hover { color: var(--ink); }
+#compareTable th[data-sort]::after { content: ""; margin-left: 4px; opacity: 0.35; }
+#compareTable th[aria-sort="ascending"]::after { content: "▲"; opacity: 1; }
+#compareTable th[aria-sort="descending"]::after { content: "▼"; opacity: 1; }
+#compareTable tbody tr { cursor: pointer; }
+#compareTable tbody tr:hover { background: var(--rc-surface-container-low); }
+
 header.topbar { padding: 12px 28px; gap: 24px; }
 .brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--rc-primary); text-decoration: none; }
 .brand-mark {
