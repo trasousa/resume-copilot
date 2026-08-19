@@ -164,6 +164,45 @@ document.getElementById("searchBtn").onclick = async () => {
   }
 };
 
+let jobMapInstance = null;
+
+function renderJobMap(jobs) {
+  const container = document.getElementById("jobMap");
+  if (!container) return;
+
+  const geocodedJobs = jobs.filter((j) => j.lat != null && j.lng != null);
+  if (!geocodedJobs.length) {
+    container.style.display = "none";
+    return;
+  }
+  container.style.display = "";
+
+  if (jobMapInstance) {
+    jobMapInstance.remove();
+    jobMapInstance = null;
+  }
+
+  // eslint-disable-next-line no-undef
+  const map = L.map(container);
+  // eslint-disable-next-line no-undef
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors",
+  }).addTo(map);
+
+  const markers = geocodedJobs.map((j) =>
+    // eslint-disable-next-line no-undef
+    L.marker([j.lat, j.lng])
+      .bindPopup(`<strong>${escapeHtml(j.title)}</strong><br>${escapeHtml(j.company)}`)
+      .addTo(map)
+  );
+
+  // eslint-disable-next-line no-undef
+  const group = L.featureGroup(markers);
+  map.fitBounds(group.getBounds(), { padding: [24, 24], maxZoom: 10 });
+
+  jobMapInstance = map;
+}
+
 function renderSearchResults(data, cvId) {
   const jobs = data.jobs || [];
   const analysisText = data.text || "";
@@ -183,7 +222,7 @@ function renderSearchResults(data, cvId) {
             <div class="row between">
               <div>
                 <h2 class="card-title">${escapeHtml(j.title)}</h2>
-                <p class="muted" style="margin:0;">${escapeHtml(j.company)}</p>
+                <p class="muted" style="margin:0; display:flex; align-items:center; gap:6px;"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(String(j.company || "").toLowerCase().replace(/[^a-z0-9]/g, ""))}.com&sz=32" width="16" height="16" alt="" onerror="this.style.display='none'" />${escapeHtml(j.company)}</p>
               </div>
               ${j.matchScore != null ? `<span class="match-badge ${j.matchScore >= 80 ? "high" : j.matchScore >= 50 ? "mid" : "low"}">${j.matchScore}% MATCH</span>` : ""}
               ${j.source === "arbeitnow" ? `<span class="pill muted" title="Found via Arbeitnow's job board API">Arbeitnow</span>` : ""}
@@ -199,7 +238,10 @@ function renderSearchResults(data, cvId) {
             .join("")}</div>`
         : ""
     }
+    <div id="jobMap"></div>
   `;
+
+  renderJobMap(jobs);
 
   searchResultEl.querySelectorAll("[data-idx]").forEach((btn) => {
     btn.onclick = async () => {

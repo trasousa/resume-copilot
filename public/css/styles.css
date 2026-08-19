@@ -519,6 +519,8 @@ dialog .card { box-shadow: none; border: none; margin: 0; }
 .activity-cell.tier-3 { background: rgba(29, 78, 75, 0.75); }
 .activity-cell.tier-4 { background: rgba(29, 78, 75, 1); }
 
+#jobMap { height: 280px; border-radius: 10px; margin: 16px 0; overflow: hidden; }
+
 header.topbar { padding: 12px 28px; gap: 24px; }
 .brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--rc-primary); text-decoration: none; }
 .brand-mark {

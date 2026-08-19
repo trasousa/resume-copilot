@@ -115,6 +115,17 @@ CREATE TABLE IF NOT EXISTS token_usage (
   tokens INTEGER NOT NULL DEFAULT 0
 );
 
+-- Server-side cache for Nominatim (OpenStreetMap) geocoding results.
+-- Nominatim's usage policy requires caching -- see src/lib/geocode.js.
+-- One row per distinct location string ever geocoded; permanent (no TTL
+-- eviction) since city-level coordinates don't meaningfully change.
+CREATE TABLE IF NOT EXISTS geocode_cache (
+  query      TEXT PRIMARY KEY, -- the raw location string, lowercased+trimmed
+  lat        REAL,
+  lng        REAL,
+  cached_at  TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_cvs_created      ON cvs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_apps_updated     ON applications(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_docs_application ON documents(application_id, created_at);
