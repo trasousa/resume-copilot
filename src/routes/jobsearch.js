@@ -5,6 +5,7 @@ import { fetchArbeitnowJobs } from "../lib/arbeitnow.js";
 import { fetchHimalayasJobs } from "../lib/himalayas.js";
 import { fetchJSearchJobs } from "../lib/jsearch.js";
 import { dedupeJobs } from "../lib/jobdedup.js";
+import { geocodeLocations, normalizeQuery } from "../lib/geocode.js";
 
 const router = new Hono();
 
@@ -129,6 +130,10 @@ router.post("/search", async (c) => {
         `a JSON array, same jobs, reordered best-fit-first, each with an added ` +
         `"matchScore" (integer 0-100) and "fitNote" (one sentence) field.`;
 
+      let finalJobs = rankingCandidates;
+      let finalText = "";
+      let finalRankingError = null;
+
       try {
         const { text } = await runTask({ env: c.env, stable, prompt, maxTokens: 8000 });
 
@@ -143,11 +148,29 @@ router.post("/search", async (c) => {
           }
         }
 
-        const summary = text.replace(/```RANKED\n[\s\S]*?\n```/, "").trim();
-        send("complete", { text: summary, jobs: rankedJobs });
+        finalJobs = rankedJobs;
+        finalText = text.replace(/```RANKED\n[\s\S]*?\n```/, "").trim();
       } catch (err) {
-        send("complete", { text: "", jobs: rankingCandidates, rankingError: err.message });
+        finalRankingError = err.message;
       }
+
+      // Geocode each job's location (deduplicated, cached) so the
+      // frontend can render a map. Runs after ranking, on whichever job
+      // list ends up final either way, so it never reaches the LLM's
+      // own prompt/context and never needs duplicating across the
+      // success/error branches above.
+      const geocoded = await geocodeLocations(c.env.DB, finalJobs.map((j) => j.location));
+      const jobsWithCoords = finalJobs.map((j) => {
+        const coords = geocoded.get(normalizeQuery(j.location));
+        return { ...j, lat: coords?.lat ?? null, lng: coords?.lng ?? null };
+      });
+
+      send(
+        "complete",
+        finalRankingError
+          ? { text: "", jobs: jobsWithCoords, rankingError: finalRankingError }
+          : { text: finalText, jobs: jobsWithCoords }
+      );
 
       controller.close();
     },
