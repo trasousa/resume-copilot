@@ -23,7 +23,7 @@ const board = document.getElementById("board");
 const staleNotice = document.getElementById("staleNotice");
 const dialog = document.getElementById("newAppDialog");
 
-document.getElementById("newAppBtn").onclick = async () => {
+async function openNewAppDialog() {
   dialog.showModal();
   const hint = document.getElementById("newAppCvHint");
   hint.innerHTML = "";
@@ -31,11 +31,11 @@ document.getElementById("newAppBtn").onclick = async () => {
   if (!cvs.length) {
     hint.innerHTML = `<p class="muted" style="margin: -4px 0 12px;">No CV in the store yet — you can save this application now, but tailoring needs one from <a href="cv-store.html">CV Store</a> first.</p>`;
   }
-};
+}
 document.getElementById("cancelNewApp").onclick = () => dialog.close();
 
 if (new URLSearchParams(window.location.search).get("new") === "1") {
-  document.getElementById("newAppBtn").click();
+  openNewAppDialog();
 }
 
 document.getElementById("saveNewApp").onclick = async () => {
