@@ -1,4 +1,5 @@
 import { api, escapeHtml, renderNav, showError, timeAgo, checkApiKey, wireJobPostFetch, safeUrl, fetchJobPostFromUrl } from "./app.js";
+import { renderActivityGraph } from "./activity-graph.js";
 import { icon } from "./icons.js";
 
 renderNav("index.html");
@@ -431,4 +432,7 @@ async function load() {
 }
 
 loadSearchCvs().then((hasCvs) => hasCvs && loadSearchProfile());
+api("/applications/activity-heatmap")
+  .then((data) => renderActivityGraph(document.getElementById("activityGraph"), data))
+  .catch(() => {}); // Non-critical widget -- a failed fetch just leaves it empty, doesn't block the rest of the page.
 load();

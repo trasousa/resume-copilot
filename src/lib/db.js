@@ -324,6 +324,25 @@ export async function getApplicationStats(db) {
   };
 }
 
+/** Daily activity counts for the trailing 365 days, for the Applications
+ * page's contribution-graph heatmap. Aggregates activity_events (already
+ * logged at every application creation, stage change, tailoring run,
+ * document generation, and reminder -- see the 4 db.addActivity call
+ * sites in src/routes/applications.js) rather than introducing any new
+ * event source. */
+export async function getActivityHeatmap(db) {
+  const { results } = await db
+    .prepare(
+      `SELECT date(occurred_at) AS day, COUNT(*) AS count
+       FROM activity_events
+       WHERE occurred_at >= date('now', '-365 days')
+       GROUP BY date(occurred_at)
+       ORDER BY day`
+    )
+    .all();
+  return results.map((r) => ({ date: r.day, count: r.count }));
+}
+
 // --- Templates (saved Outreach Studio drafts) --------------------------------
 
 const templateFromRow = (r) =>
