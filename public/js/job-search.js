@@ -164,7 +164,7 @@ function render(data, cvId) {
         ? `<div class="job-grid">${jobs
             .map(
               (j, i) => `
-          <div class="card job-card">
+          <div class="card job-card stagger-item" style="--index:${i};">
             <div class="row between">
               <div>
                 <h2 class="card-title">${escapeHtml(j.title)}</h2>

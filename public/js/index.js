@@ -150,8 +150,8 @@ async function load() {
     const items = apps.filter((a) => a.stage === key);
     body.innerHTML = items
       .map(
-        (a) => `
-      <div class="app-card app-card-${a.stage}" data-id="${a.id}">
+        (a, i) => `
+      <div class="app-card app-card-${a.stage} stagger-item" data-id="${a.id}" style="--index:${i};">
         <div class="row between">
           <span class="status-chip ${a.stage}">${a.stage}</span>
           ${a.matchScore != null ? `<span class="match-badge ${a.matchScore >= 80 ? "high" : a.matchScore >= 50 ? "mid" : "low"}">${a.matchScore}%</span>` : ""}
