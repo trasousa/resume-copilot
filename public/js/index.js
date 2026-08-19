@@ -23,7 +23,7 @@ const board = document.getElementById("board");
 const staleNotice = document.getElementById("staleNotice");
 const dialog = document.getElementById("newAppDialog");
 
-document.getElementById("newAppBtn").onclick = async () => {
+async function openNewAppDialog() {
   dialog.showModal();
   const hint = document.getElementById("newAppCvHint");
   hint.innerHTML = "";
@@ -31,11 +31,11 @@ document.getElementById("newAppBtn").onclick = async () => {
   if (!cvs.length) {
     hint.innerHTML = `<p class="muted" style="margin: -4px 0 12px;">No CV in the store yet — you can save this application now, but tailoring needs one from <a href="cv-store.html">CV Store</a> first.</p>`;
   }
-};
+}
 document.getElementById("cancelNewApp").onclick = () => dialog.close();
 
 if (new URLSearchParams(window.location.search).get("new") === "1") {
-  document.getElementById("newAppBtn").click();
+  openNewAppDialog();
 }
 
 document.getElementById("saveNewApp").onclick = async () => {
@@ -150,8 +150,8 @@ async function load() {
     const items = apps.filter((a) => a.stage === key);
     body.innerHTML = items
       .map(
-        (a) => `
-      <div class="app-card app-card-${a.stage}" data-id="${a.id}">
+        (a, i) => `
+      <div class="app-card app-card-${a.stage} stagger-item" data-id="${a.id}" style="--index:${i};">
         <div class="row between">
           <span class="status-chip ${a.stage}">${a.stage}</span>
           ${a.matchScore != null ? `<span class="match-badge ${a.matchScore >= 80 ? "high" : a.matchScore >= 50 ? "mid" : "low"}">${a.matchScore}%</span>` : ""}

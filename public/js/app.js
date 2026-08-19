@@ -116,7 +116,6 @@ export function renderNav(active) {
       </nav>
       <div class="row" style="gap: 10px; position: relative;">
         <a class="btn" href="index.html?new=1" id="topnavNewApp">${icon("plus")} New Application</a>
-        <button class="icon-btn" title="Notifications" disabled>${icon("bell")}</button>
         <button class="avatar-circle" id="avatarMenuBtn" title="Profile & Settings" style="border:none; cursor:pointer;">?</button>
         <div class="avatar-menu" id="avatarMenu" style="display:none;">
           <a href="profile.html">${icon("user")} Profile &amp; Settings</a>

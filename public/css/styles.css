@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap');
 
 :root {
   /* Deep teal + coral palette: calm, focused, distinct brand identity.
@@ -22,6 +22,19 @@
   --rc-on-surface: #1A1A18;
   --rc-on-surface-variant: #5C5A52;
   --rc-outline-variant: #D8D4C8;
+
+  /* Muted pastel tag system -- status chips, match badges, and pills use
+     these instead of the more saturated --warn/--danger/--success tokens,
+     which stay reserved for real alerts (error banners, destructive
+     actions) rather than routine status labels. */
+  --rc-tag-red: #FDEBEC;
+  --rc-tag-red-ink: #9F2F2D;
+  --rc-tag-blue: #E1F3FE;
+  --rc-tag-blue-ink: #1F6C9F;
+  --rc-tag-green: #EDF3EC;
+  --rc-tag-green-ink: #346538;
+  --rc-tag-yellow: #FBF3DB;
+  --rc-tag-yellow-ink: #956400;
 }
 
 :root {
@@ -39,7 +52,7 @@
   --radius: 6px;
   --shadow: 0 1px 2px rgba(29, 78, 75, 0.06), 0 1px 6px rgba(29, 78, 75, 0.06);
   --font-display: "Source Serif 4", Georgia, "Times New Roman", serif;
-  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-family: var(--font-body);
 }
 
@@ -133,12 +146,24 @@ main > #onboardingBanner > .card,
 main > .grid > .card:nth-child(2) { animation-delay: 0.06s; }
 .cv-page > .assistant-rail { animation-delay: 0.1s; }
 
+/* Staggered entrance for dynamically-rendered card lists (kanban cards,
+   job search results) -- riseIn above only reaches cards that are direct
+   children of main/.grid, so nested repeated cards get zero entrance
+   animation without this. Set --index inline per item at render time. */
+@keyframes cardStagger {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.stagger-item {
+  animation: cardStagger 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--index, 0) * 80ms);
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px 22px;
-  box-shadow: var(--shadow);
+  border-radius: 10px;
+  padding: 24px 28px;
   margin-bottom: 18px;
 }
 
@@ -220,8 +245,8 @@ input[type="file"]::file-selector-button:hover { background: var(--rc-surface-co
   color: var(--accent);
 }
 
-.pill.warn { background: var(--warn-soft); color: var(--warn); }
-.pill.danger { background: var(--danger-soft); color: var(--danger); }
+.pill.warn { background: var(--rc-tag-yellow); color: var(--rc-tag-yellow-ink); }
+.pill.danger { background: var(--rc-tag-red); color: var(--rc-tag-red-ink); }
 .pill.muted { background: var(--bg); color: var(--ink-soft); }
 
 .muted { color: var(--ink-soft); font-size: 13px; }
@@ -263,7 +288,8 @@ input[type="file"]::file-selector-button:hover { background: var(--rc-surface-co
   margin-bottom: 8px;
   cursor: pointer;
 }
-.app-card:hover { border-color: var(--accent); }
+.app-card, .job-card { transition: box-shadow 200ms ease, border-color 200ms ease; }
+.app-card:hover, .job-card:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(29, 78, 75, 0.08); }
 .app-card .company { font-weight: 600; font-size: 13.5px; }
 .app-card .role { font-size: 12.5px; color: var(--ink-soft); }
 .app-card .meta { font-size: 11.5px; color: var(--ink-soft); margin-top: 6px; }
@@ -297,6 +323,13 @@ pre.cv-preview {
 
 .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Shaped like the text it's about to be replaced by ("N found") rather
+   than a generic spinner -- used for job search's per-source progress
+   rows specifically, which take the longest and are the most visible
+   loading state in the app. */
+.skeleton-pulse { display: inline-block; width: 44px; height: 11px; border-radius: 4px; background: var(--border); vertical-align: middle; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; } }
 
 .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 
@@ -399,7 +432,7 @@ dialog {
 dialog::backdrop { background: rgba(31,29,26,0.35); }
 dialog .card { box-shadow: none; border: none; margin: 0; }
 
-/* --- Advocate component primitives -------------------------------------- */
+/* --- Component primitives ------------------------------------------------ */
 
 .icon { display: inline-flex; width: 20px; height: 20px; flex-shrink: 0; }
 .icon svg { width: 100%; height: 100%; }
@@ -419,21 +452,22 @@ dialog .card { box-shadow: none; border: none; margin: 0; }
   background: var(--rc-surface-container); color: var(--rc-on-surface-variant);
 }
 .status-chip.saved     { background: var(--rc-surface-container); color: var(--rc-on-surface-variant); }
-.status-chip.applied   { background: var(--rc-primary-container); color: var(--rc-primary); }
-.status-chip.screening { background: var(--rc-primary-container); color: var(--rc-primary); }
-.status-chip.interview { background: var(--rc-warn-soft); color: var(--rc-warn); }
-.status-chip.offer     { background: var(--rc-success-soft); color: var(--rc-success); }
+.status-chip.applied   { background: var(--rc-tag-blue); color: var(--rc-tag-blue-ink); }
+.status-chip.screening { background: var(--rc-tag-blue); color: var(--rc-tag-blue-ink); }
+.status-chip.interview { background: var(--rc-tag-yellow); color: var(--rc-tag-yellow-ink); }
+.status-chip.offer     { background: var(--rc-tag-green); color: var(--rc-tag-green-ink); }
 .status-chip.rejected,
-.status-chip.withdrawn { background: var(--danger-soft); color: var(--danger); }
+.status-chip.withdrawn { background: var(--rc-tag-red); color: var(--rc-tag-red-ink); }
 
 .match-badge {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 10px; border-radius: 999px;
   font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
-.match-badge.high { background: var(--rc-success-soft); color: var(--rc-success); }
-.match-badge.mid  { background: var(--rc-primary-container); color: var(--rc-primary); }
-.match-badge.low  { background: var(--danger-soft); color: var(--danger); }
+.match-badge.high { background: var(--rc-tag-green); color: var(--rc-tag-green-ink); }
+.match-badge.mid  { background: var(--rc-tag-yellow); color: var(--rc-tag-yellow-ink); }
+.match-badge.low  { background: var(--rc-tag-red); color: var(--rc-tag-red-ink); }
 
 .ledger-line {
   display: flex;
@@ -458,6 +492,7 @@ dialog .card { box-shadow: none; border: none; margin: 0; }
   font-size: 24px;
   font-weight: 600;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 .ledger-item .ledger-label {
   font-size: 11px;

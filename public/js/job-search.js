@@ -66,7 +66,7 @@ function renderProgressRow(source, status, extra) {
   }
   row.className = `source-row ${status}`;
   const label = SOURCE_LABELS[source] || source;
-  if (status === "searching") row.innerHTML = `<span class="spinner"></span> ${escapeHtml(label)}`;
+  if (status === "searching") row.innerHTML = `${escapeHtml(label)}: <span class="skeleton-pulse"></span>`;
   else if (status === "done") row.textContent = `${label}: ${extra} found`;
   else row.textContent = `${label}: unavailable`;
 }
@@ -164,7 +164,7 @@ function render(data, cvId) {
         ? `<div class="job-grid">${jobs
             .map(
               (j, i) => `
-          <div class="card job-card">
+          <div class="card job-card stagger-item" style="--index:${i};">
             <div class="row between">
               <div>
                 <h2 class="card-title">${escapeHtml(j.title)}</h2>
