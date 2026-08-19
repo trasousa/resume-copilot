@@ -23,6 +23,8 @@ router.get("/", async (c) => c.json(await db.listApplications(c.env.DB)));
 
 router.get("/stats", async (c) => c.json(await db.getApplicationStats(c.env.DB)));
 
+router.get("/activity-heatmap", async (c) => c.json(await db.getActivityHeatmap(c.env.DB)));
+
 router.get("/:id/activity", async (c) => {
   const app = await db.getApplication(c.env.DB, c.req.param("id"));
   if (!app) return c.json({ error: "Application not found" }, 404);
