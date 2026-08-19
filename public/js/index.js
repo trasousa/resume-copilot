@@ -1,4 +1,4 @@
-import { api, escapeHtml, renderNav, showError, timeAgo, checkApiKey, wireJobPostFetch } from "./app.js";
+import { api, escapeHtml, renderNav, showError, timeAgo, checkApiKey, wireJobPostFetch, safeUrl, fetchJobPostFromUrl } from "./app.js";
 import { icon } from "./icons.js";
 
 renderNav("index.html");
@@ -10,6 +10,245 @@ wireJobPostFetch({
   jobPostTextarea: document.getElementById("f-jobpost"),
   statusEl: document.getElementById("f-fetch-status"),
 });
+
+const cvSelect = document.getElementById("cvSelect");
+const searchResultEl = document.getElementById("result");
+const searchStatusEl = document.getElementById("status");
+const searchProgressEl = document.getElementById("searchProgress");
+const searchPaneBody = document.getElementById("searchPaneBody");
+
+const SOURCE_LABELS = { arbeitnow: "Arbeitnow", himalayas: "Himalayas", jsearch: "LinkedIn/Indeed/Glassdoor" };
+
+const chipEls = document.querySelectorAll("#jobTypeChips .chip");
+chipEls.forEach((chip) => {
+  chip.onclick = () => chip.classList.toggle("active");
+});
+function selectedJobTypes() {
+  return [...chipEls].filter((c) => c.classList.contains("active")).map((c) => c.dataset.type);
+}
+
+/** Populates the CV select. Unlike the old standalone Job Search page,
+ * this must NOT call ensureCvsOrEmptyState(main, ...) -- that would wipe
+ * the whole page (masthead, ledger, kanban board), not just this panel.
+ * Scoped instead to #searchPaneBody alone. */
+async function loadSearchCvs() {
+  const cvs = await api("/cvs").catch(() => []);
+  if (!cvs.length) {
+    searchPaneBody.innerHTML = `<p class="muted">Job search needs a CV to match against — add one from <a href="cv-store.html">CV Store</a> first.</p>`;
+    return false;
+  }
+  cvSelect.innerHTML = cvs
+    .map((cv) => `<option value="${cv.id}" ${cv.isMaster ? "selected" : ""}>${escapeHtml(cv.label)}${cv.isMaster ? " (master)" : ""}</option>`)
+    .join("");
+  return true;
+}
+
+/** Prefill the search form from the saved profile, so preferences set
+ * during onboarding (or a previous search) don't have to be re-typed. */
+async function loadSearchProfile() {
+  const p = await api("/profile").catch(() => null);
+  if (!p) return;
+  document.getElementById("city").value = p.city;
+  document.getElementById("region").value = p.region;
+  document.getElementById("country").value = p.country;
+  document.getElementById("remote").checked = p.remote;
+  document.getElementById("minComp").value = p.minComp;
+  document.getElementById("notes").value = p.notes;
+}
+
+function saveSearchProfileFromForm() {
+  api("/profile", {
+    method: "PUT",
+    body: {
+      city: document.getElementById("city").value.trim(),
+      region: document.getElementById("region").value.trim(),
+      country: document.getElementById("country").value.trim(),
+      remote: document.getElementById("remote").checked,
+      minComp: document.getElementById("minComp").value.trim(),
+      notes: document.getElementById("notes").value.trim(),
+    },
+  }).catch(() => {});
+}
+
+function renderProgressRow(source, status, extra) {
+  let row = searchProgressEl.querySelector(`[data-source="${source}"]`);
+  if (!row) {
+    row = document.createElement("span");
+    row.className = "source-row";
+    row.dataset.source = source;
+    searchProgressEl.appendChild(row);
+  }
+  row.className = `source-row ${status}`;
+  const label = SOURCE_LABELS[source] || source;
+  if (status === "searching") row.innerHTML = `${escapeHtml(label)}: <span class="skeleton-pulse"></span>`;
+  else if (status === "done") row.textContent = `${label}: ${extra} found`;
+  else row.textContent = `${label}: unavailable`;
+}
+
+document.getElementById("searchBtn").onclick = async () => {
+  const cvId = cvSelect.value;
+  if (!cvId) return alert("Add a CV first (CV Store tab).");
+  const remote = document.getElementById("remote").checked;
+  const city = document.getElementById("city").value.trim();
+  const region = document.getElementById("region").value.trim();
+  const country = document.getElementById("country").value.trim();
+  if (!remote && !city && !region && !country) return alert("Enter a location, or check 'remote'.");
+
+  const searchBtn = document.getElementById("searchBtn");
+  searchBtn.disabled = true;
+
+  searchStatusEl.textContent = "Searching three sources and ranking matches — this can take up to two minutes.";
+  searchProgressEl.innerHTML = "";
+  searchResultEl.innerHTML = "";
+
+  try {
+    const res = await fetch("/api/jobsearch/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cvId,
+        city,
+        region,
+        country,
+        remote,
+        minComp: document.getElementById("minComp").value.trim(),
+        notes: [document.getElementById("notes").value.trim(), selectedJobTypes().length ? `Job type preference: ${selectedJobTypes().join(", ")}` : ""].filter(Boolean).join(". "),
+      }),
+    });
+
+    if (!res.ok) {
+      let error;
+      try {
+        error = (await res.json()).error;
+      } catch {
+        if (res.status === 401) error = "Your session expired. Reload the page to sign in again.";
+      }
+      throw new Error(error || `Request failed (${res.status})`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalData = null;
+
+    while (true) {
+      const { done: streamDone, value } = await reader.read();
+      if (streamDone) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+
+      for (const frame of frames) {
+        const event = frame.match(/^event: (.+)$/m)?.[1];
+        const dataLine = frame.match(/^data: (.+)$/m)?.[1];
+        if (!event || !dataLine) continue;
+
+        const data = JSON.parse(dataLine);
+        if (event === "source") {
+          renderProgressRow(data.source, data.status, data.status === "done" ? data.count : data.message);
+        } else if (event === "complete") {
+          finalData = data;
+        }
+      }
+    }
+
+    saveSearchProfileFromForm();
+    if (finalData) renderSearchResults(finalData, cvId);
+  } catch (err) {
+    showError(document.querySelector("main"), err);
+  } finally {
+    searchStatusEl.textContent = "";
+    searchBtn.disabled = false;
+  }
+};
+
+function renderSearchResults(data, cvId) {
+  const jobs = data.jobs || [];
+  const analysisText = data.text || "";
+
+  searchResultEl.innerHTML = `
+    <div class="card">
+      <h2>Results</h2>
+      <div class="doc-content">${escapeHtml(analysisText)}</div>
+    </div>
+    ${data.rankingError ? `<div class="error-banner" style="background:var(--warn-soft); color:var(--warn);">Ranking failed this time (${escapeHtml(data.rankingError)}); showing unranked results.</div>` : ""}
+    ${
+      jobs.length
+        ? `<div class="job-grid">${jobs
+            .map(
+              (j, i) => `
+          <div class="card job-card stagger-item" style="--index:${i};">
+            <div class="row between">
+              <div>
+                <h2 class="card-title">${escapeHtml(j.title)}</h2>
+                <p class="muted" style="margin:0;">${escapeHtml(j.company)}</p>
+              </div>
+              ${j.matchScore != null ? `<span class="match-badge ${j.matchScore >= 80 ? "high" : j.matchScore >= 50 ? "mid" : "low"}">${j.matchScore}% MATCH</span>` : ""}
+              ${j.source === "arbeitnow" ? `<span class="pill muted" title="Found via Arbeitnow's job board API">Arbeitnow</span>` : ""}
+            </div>
+            <p class="muted" style="margin:10px 0;">${icon("mapPin")} ${escapeHtml(j.location || "")} ${j.compEstimate ? `&nbsp;${icon("dollar")} ${escapeHtml(j.compEstimate)}` : ""}</p>
+            ${j.fitNote ? `<p style="font-size:13.5px;">${escapeHtml(j.fitNote)}</p>` : ""}
+            <div class="row" style="margin-top:12px;">
+              <button class="btn" data-idx="${i}" style="flex:1;">Save</button>
+              ${safeUrl(j.url) ? `<a class="icon-btn" href="${escapeHtml(safeUrl(j.url))}" target="_blank" rel="noopener" title="View posting">${icon("chevronRight")}</a>` : ""}
+            </div>
+          </div>`
+            )
+            .join("")}</div>`
+        : ""
+    }
+  `;
+
+  searchResultEl.querySelectorAll("[data-idx]").forEach((btn) => {
+    btn.onclick = async () => {
+      const j = jobs[Number(btn.dataset.idx)];
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      try {
+        // Fetch the actual posting text where possible so a later manual
+        // "Tailor CV" click has real content to work from -- this is a
+        // fast plain fetch, not an AI call, so it doesn't reintroduce the
+        // context-switch problem the auto-tailor-and-redirect flow had.
+        let jobPostText = "";
+        if (safeUrl(j.url)) {
+          jobPostText = await fetchJobPostFromUrl(j.url).catch(() => "");
+        }
+        if (!jobPostText) {
+          jobPostText = [j.title, j.company, j.location, j.fitNote].filter(Boolean).join("\n");
+        }
+
+        const app = await api("/applications", {
+          method: "POST",
+          body: {
+            company: j.company,
+            role: j.title,
+            location: j.location,
+            link: j.url,
+            source: "job-search",
+            compEstimate: j.compEstimate,
+            jobPostText,
+            cvId,
+            stage: "saved",
+          },
+        });
+
+        btn.textContent = "Saved";
+        await load();
+        const newCard = document.querySelector(`.app-card[data-id="${app.id}"]`);
+        if (newCard) {
+          newCard.classList.add("just-saved");
+          setTimeout(() => newCard.classList.remove("just-saved"), 1500);
+          newCard.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Save";
+        showError(document.querySelector("main"), err);
+      }
+    };
+  });
+}
 
 const STAGES = [
   ["saved", "Saved"],
@@ -191,4 +430,5 @@ async function load() {
   });
 }
 
+loadSearchCvs().then((hasCvs) => hasCvs && loadSearchProfile());
 load();
