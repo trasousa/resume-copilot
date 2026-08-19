@@ -324,6 +324,13 @@ pre.cv-preview {
 .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Shaped like the text it's about to be replaced by ("N found") rather
+   than a generic spinner -- used for job search's per-source progress
+   rows specifically, which take the longest and are the most visible
+   loading state in the app. */
+.skeleton-pulse { display: inline-block; width: 44px; height: 11px; border-radius: 4px; background: var(--border); vertical-align: middle; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; } }
+
 .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 
 /* CV document component (render + inline edit + assistant rail) */
