@@ -301,6 +301,15 @@ const STAGES = [
   ["offer", "Offer"],
 ];
 
+// Full stage order for the compare table's default sort, including the two
+// terminal stages the kanban's STAGES above deliberately excludes (they
+// render in a separate "Closed" column, not a kanban stage column).
+const STAGE_ORDER = ["saved", "applied", "screening", "interview", "offer", "rejected", "withdrawn"];
+
+let compareSortKey = "stage";
+let compareSortDir = "asc";
+let compareAppsData = [];
+
 const board = document.getElementById("board");
 const staleNotice = document.getElementById("staleNotice");
 const dialog = document.getElementById("newAppDialog");
@@ -389,6 +398,79 @@ function renderMastheadStatement(apps, stats, appsLoadFailed) {
   el.textContent = statement;
 }
 
+/** Best-effort first-number scrape from freeform compensation text (e.g.
+ * "$120k-140k" -> 120, "competitive" -> null). Mirrors the same
+ * regex-scrape spirit as parseMatchScore in src/routes/applications.js --
+ * good enough for sorting, not meant to be exact. */
+function parseCompValue(compEstimate) {
+  const m = String(compEstimate || "").match(/[\d,]+/);
+  if (!m) return null;
+  const n = Number(m[0].replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+function renderComparePanel(apps) {
+  compareAppsData = apps;
+  const tbody = document.getElementById("compareTableBody");
+  if (!tbody) return;
+
+  const dir = compareSortDir === "asc" ? 1 : -1;
+  const rows = [...apps].sort((a, b) => {
+    if (compareSortKey === "match" || compareSortKey === "comp") {
+      const av = compareSortKey === "match" ? a.matchScore : parseCompValue(a.compEstimate);
+      const bv = compareSortKey === "match" ? b.matchScore : parseCompValue(b.compEstimate);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1; // nulls sort last regardless of direction
+      if (bv == null) return -1;
+      return (av - bv) * dir;
+    }
+    if (compareSortKey === "stage") {
+      return (STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage)) * dir;
+    }
+    if (compareSortKey === "location") {
+      return String(a.location || "").localeCompare(String(b.location || "")) * dir;
+    }
+    return (
+      (String(a.company || "").localeCompare(String(b.company || "")) ||
+        String(a.role || "").localeCompare(String(b.role || ""))) * dir
+    );
+  });
+
+  tbody.innerHTML = rows
+    .map(
+      (a) => `
+    <tr data-id="${a.id}">
+      <td>${escapeHtml(a.company)} — ${escapeHtml(a.role)}</td>
+      <td><span class="status-chip ${a.stage}">${a.stage}</span></td>
+      <td>${a.matchScore != null ? a.matchScore + "%" : "—"}</td>
+      <td>${a.compEstimate ? escapeHtml(a.compEstimate) : "—"}</td>
+      <td>${escapeHtml(a.location || "—")}</td>
+    </tr>`
+    )
+    .join("");
+
+  tbody.querySelectorAll("tr").forEach((tr) => {
+    tr.onclick = () => (window.location.href = `application.html?id=${tr.dataset.id}`);
+  });
+
+  document.querySelectorAll("#compareTable th[data-sort]").forEach((th) => {
+    if (th.dataset.sort === compareSortKey) {
+      th.setAttribute("aria-sort", compareSortDir === "asc" ? "ascending" : "descending");
+    } else {
+      th.removeAttribute("aria-sort");
+    }
+  });
+}
+
+document.querySelectorAll("#compareTable th[data-sort]").forEach((th) => {
+  th.onclick = () => {
+    const key = th.dataset.sort;
+    compareSortDir = compareSortKey === key ? (compareSortDir === "asc" ? "desc" : "asc") : "asc";
+    compareSortKey = key;
+    renderComparePanel(compareAppsData);
+  };
+});
+
 async function load() {
   let apps = [];
   let appsLoadFailed = false;
@@ -402,6 +484,7 @@ async function load() {
   const stats = await api("/applications/stats").catch(() => ({ total: apps.length, interviews: 0, offers: 0, avgMatch: null }));
   renderStats(apps, stats);
   renderMastheadStatement(apps, stats, appsLoadFailed);
+  renderComparePanel(apps);
 
   const stale = apps.filter((a) => isStale(a) && !["offer", "rejected", "withdrawn"].includes(a.stage));
   staleNotice.innerHTML = stale.length
