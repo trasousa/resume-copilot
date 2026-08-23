@@ -8,8 +8,11 @@
 // pages, category indexes) is dropped rather than guessed at.
 
 const BASE_URL = "https://api.tavily.com/search";
+// Bare domains only -- Tavily's include_domains matches hostnames, not
+// paths, so "linkedin.com/jobs" would silently exclude LinkedIn entirely.
+// Non-posting LinkedIn pages are handled by NON_POSTING_PATH instead.
 const JOB_BOARD_DOMAINS = [
-  "linkedin.com/jobs",
+  "linkedin.com",
   "indeed.com",
   "glassdoor.com",
   "lever.co",

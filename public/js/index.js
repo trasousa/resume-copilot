@@ -100,7 +100,7 @@ document.getElementById("searchBtn").onclick = async () => {
   const searchBtn = document.getElementById("searchBtn");
   searchBtn.disabled = true;
 
-  searchStatusEl.textContent = "Contacting three job sources…";
+  searchStatusEl.textContent = "Contacting job sources…";
   searchProgressEl.innerHTML = "";
   searchResultEl.innerHTML = "";
 
