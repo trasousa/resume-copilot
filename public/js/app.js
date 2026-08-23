@@ -18,6 +18,10 @@ export async function api(path, options = {}) {
       // there's nothing this app itself can do about that.
       if (res.status === 401) message = "Your session expired. Reload the page to sign in again.";
     }
+    // The daily cap message from src/lib/llm.js already explains the reset
+    // time; point at the nav indicator too so the user knows where to check
+    // remaining budget before retrying.
+    if (res.status === 429) message += " See the AI budget indicator in the nav for today's usage.";
     throw new Error(message);
   }
   if (res.status === 204) return null;
@@ -75,6 +79,51 @@ export async function ensureCvsOrEmptyState(container, message) {
   return null;
 }
 
+/**
+ * Runs a one-shot (non-streamed) AI call with elapsed-time-aware status text
+ * and a disabled/relabeled trigger button. runTask() (src/lib/llm.js) has no
+ * streaming hook to hang progress off of -- this is the substitute: an
+ * immediate staged message, swapped out for later ones (typically a "still
+ * working" message) as the call runs long. `stages` is a list of
+ * [delayMs, text] pairs; the delay-0 entry shows immediately.
+ */
+export async function runStagedTask(fn, { statusEl, stages = [], button, busyLabel } = {}) {
+  const prevLabel = button?.textContent;
+  if (button) {
+    button.disabled = true;
+    if (busyLabel) button.textContent = busyLabel;
+  }
+  const timers = [];
+  if (statusEl) {
+    for (const [delay, text] of stages) {
+      if (delay === 0) statusEl.textContent = text;
+      else timers.push(setTimeout(() => { statusEl.textContent = text; }, delay));
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    timers.forEach((t) => window.clearTimeout(t));
+    if (statusEl) statusEl.textContent = "";
+    if (button) {
+      button.disabled = false;
+      if (busyLabel) button.textContent = prevLabel;
+    }
+  }
+}
+
+/**
+ * A few pulsing placeholder bars shaped like the card about to arrive --
+ * the same `.skeleton-pulse` vocabulary the search pane's per-source rows
+ * use, just stacked instead of following inline text.
+ */
+export function skeletonBars(n = 3) {
+  return Array.from(
+    { length: n },
+    (_, i) => `<p class="muted"><span class="skeleton-pulse" style="width:${180 - i * 20}px;"></span></p>`
+  ).join("");
+}
+
 export function escapeHtml(str) {
   return String(str ?? "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -114,6 +163,7 @@ export function renderNav(active) {
           .join("")}
       </nav>
       <div class="row" style="gap: 10px; position: relative;">
+        <span class="muted" id="aiBudgetIndicator"></span>
         <a class="btn" href="index.html?new=1" id="topnavNewApp">${icon("plus")} New Application</a>
         <button class="avatar-circle" id="avatarMenuBtn" title="Profile & Settings" style="border:none; cursor:pointer;">?</button>
         <div class="avatar-menu" id="avatarMenu" style="display:none;">
@@ -142,6 +192,16 @@ export function renderNav(active) {
         menuBtn.textContent = email[0].toUpperCase();
         menuBtn.title = email;
       }
+    })
+    .catch(() => {});
+
+  // Once per page load, non-critical -- a failed fetch just leaves the
+  // indicator blank instead of blocking or erroring the nav.
+  fetch("/api/usage")
+    .then((r) => r.json())
+    .then(({ used, cap }) => {
+      const pct = Math.round((used / cap) * 100);
+      document.getElementById("aiBudgetIndicator").textContent = `AI budget: ${pct}% used today`;
     })
     .catch(() => {});
 }

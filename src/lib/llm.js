@@ -13,7 +13,9 @@
 import * as workersai from "./workersai.js";
 import * as db from "./db.js";
 
-const DAILY_TOKEN_CAP = 100000;
+// Exported so src/routes/usage.js can report {used, cap} without duplicating
+// the number (and risking it drifting out of sync with the actual gate).
+export const DAILY_TOKEN_CAP = 100000;
 
 function today() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD, UTC
