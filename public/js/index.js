@@ -18,7 +18,7 @@ const searchStatusEl = document.getElementById("status");
 const searchProgressEl = document.getElementById("searchProgress");
 const searchPaneBody = document.getElementById("searchPaneBody");
 
-const SOURCE_LABELS = { arbeitnow: "Arbeitnow", himalayas: "Himalayas", jsearch: "LinkedIn/Indeed/Glassdoor" };
+const SOURCE_LABELS = { arbeitnow: "Arbeitnow", himalayas: "Himalayas", jsearch: "LinkedIn/Indeed/Glassdoor", tavily: "Tavily (web search)" };
 
 const chipEls = document.querySelectorAll("#jobTypeChips .chip");
 chipEls.forEach((chip) => {
@@ -226,6 +226,7 @@ function renderSearchResults(data, cvId) {
               </div>
               ${j.matchScore != null ? `<span class="match-badge ${j.matchScore >= 80 ? "high" : j.matchScore >= 50 ? "mid" : "low"}">${j.matchScore}% MATCH</span>` : ""}
               ${j.source === "arbeitnow" ? `<span class="pill muted" title="Found via Arbeitnow's job board API">Arbeitnow</span>` : ""}
+              ${j.source === "tavily" ? `<span class="pill muted" title="Found via Tavily web search">Tavily</span>` : ""}
             </div>
             <p class="muted" style="margin:10px 0;">${icon("mapPin")} ${escapeHtml(j.location || "")} ${j.compEstimate ? `&nbsp;${icon("dollar")} ${escapeHtml(j.compEstimate)}` : ""}</p>
             ${j.fitNote ? `<p style="font-size:13.5px;">${escapeHtml(j.fitNote)}</p>` : ""}

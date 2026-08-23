@@ -75,13 +75,14 @@ This app uses [Cloudflare Workers AI](https://developers.cloudflare.com/workers-
 
 ## Job search
 
-Job Search combines three free sources, run concurrently:
+Job Search combines four free sources, run concurrently:
 
 - **[Arbeitnow](https://www.arbeitnow.com)** (`src/lib/arbeitnow.js`) -- free, no key. Germany/UK-heavy on-site + some remote postings, aggregated from Greenhouse/SmartRecruiters/etc, updated hourly. No server-side search, so city/region/country/remote filtering happens in-app after fetching.
 - **[Himalayas](https://himalayas.app)** (`src/lib/himalayas.js`) -- free, no key. Global remote-only postings with real keyword+country search and salary data when disclosed.
-- **[OpenWebNinja JSearch](https://www.openwebninja.com)** (`src/lib/jsearch.js`) -- optional, needs `OPENWEBNINJA_API_KEY`. Aggregates LinkedIn, Indeed, Glassdoor, ZipRecruiter, and other public boards via Google for Jobs. **Free tier is 200 requests/month** -- each user-initiated search costs exactly one JSearch request, so budget accordingly. Job Search works fine without this key set; you just lose that source's results.
+- **[OpenWebNinja JSearch](https://www.openwebninja.com)** (`src/lib/jsearch.js`) -- optional, needs `OPENWEBNINJA_API_KEY` (`npx wrangler secret put OPENWEBNINJA_API_KEY`). Aggregates LinkedIn, Indeed, Glassdoor, ZipRecruiter, and other public boards via Google for Jobs. **Free tier is 200 requests/month** -- each user-initiated search costs exactly one JSearch request, so budget accordingly. Job Search works fine without this key set; you just lose that source's results.
+- **[Tavily](https://tavily.com)** (`src/lib/tavily.js`) -- optional, needs `TAVILY_API_KEY` (`npx wrangler secret put TAVILY_API_KEY`). General web search scoped to LinkedIn/Indeed/Glassdoor/Lever/Greenhouse/Workable via `include_domains`, parsed best-effort since Tavily returns generic web results rather than structured postings. Also optional -- Job Search works fine without this key set.
 
-Results from all three are deduplicated (`src/lib/jobdedup.js`, matched by normalized company + title + location/remote) before Workers AI ranks the merged list against your CV. Search progress streams to the page as each source resolves, rather than waiting for all three before showing anything.
+Results from all four are deduplicated (`src/lib/jobdedup.js`, matched by normalized company + title + location/remote) before Workers AI ranks the merged list against your CV. Search progress streams to the page as each source resolves, rather than waiting for all four before showing anything.
 
 ## Deploy
 
