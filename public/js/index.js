@@ -1,4 +1,4 @@
-import { api, escapeHtml, renderNav, showError, timeAgo, checkApiKey, wireJobPostFetch, safeUrl, fetchJobPostFromUrl } from "./app.js";
+import { api, escapeHtml, renderNav, showError, timeAgo, checkApiKey, wireJobPostFetch, safeUrl, fetchJobPostFromUrl, matchPct } from "./app.js";
 import { renderActivityGraph } from "./activity-graph.js";
 import { icon } from "./icons.js";
 
@@ -281,7 +281,7 @@ function renderSearchResults(state) {
                 <h2 class="card-title">${escapeHtml(j.title)}</h2>
                 <p class="muted" style="margin:0; display:flex; align-items:center; gap:6px;"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(String(j.company || "").toLowerCase().replace(/[^a-z0-9]/g, ""))}.com&sz=32" width="16" height="16" alt="" onerror="this.style.display='none'" />${escapeHtml(j.company)}</p>
               </div>
-              ${j.matchScore != null ? `<span class="match-badge ${j.matchScore >= 80 ? "high" : j.matchScore >= 50 ? "mid" : "low"}">${j.matchScore}% MATCH</span>` : ""}
+              ${matchPct(j.matchScore) != null ? `<span class="match-badge ${matchPct(j.matchScore) >= 80 ? "high" : matchPct(j.matchScore) >= 50 ? "mid" : "low"}">${matchPct(j.matchScore)}% MATCH</span>` : ""}
               ${j.source === "arbeitnow" ? `<span class="pill muted" title="Found via Arbeitnow's job board API">Arbeitnow</span>` : ""}
               ${j.source === "tavily" ? `<span class="pill muted" title="Found via Tavily web search">Tavily</span>` : ""}
             </div>
@@ -504,7 +504,7 @@ function renderComparePanel(apps) {
     <tr data-id="${a.id}">
       <td>${escapeHtml(a.company)} — ${escapeHtml(a.role)}</td>
       <td><span class="status-chip ${a.stage}">${a.stage}</span></td>
-      <td>${a.matchScore != null ? a.matchScore + "%" : "—"}</td>
+      <td>${matchPct(a.matchScore) != null ? matchPct(a.matchScore) + "%" : "—"}</td>
       <td>${a.compEstimate ? escapeHtml(a.compEstimate) : "—"}</td>
       <td>${escapeHtml(a.location || "—")}</td>
     </tr>`
@@ -581,7 +581,7 @@ async function load() {
       <div class="app-card app-card-${a.stage} stagger-item" data-id="${a.id}" style="--index:${i};">
         <div class="row between">
           <span class="status-chip ${a.stage}">${a.stage}</span>
-          ${a.matchScore != null ? `<span class="match-badge ${a.matchScore >= 80 ? "high" : a.matchScore >= 50 ? "mid" : "low"}">${a.matchScore}%</span>` : ""}
+          ${matchPct(a.matchScore) != null ? `<span class="match-badge ${matchPct(a.matchScore) >= 80 ? "high" : matchPct(a.matchScore) >= 50 ? "mid" : "low"}">${matchPct(a.matchScore)}%</span>` : ""}
         </div>
         <div class="company">${escapeHtml(a.role)}</div>
         <div class="role">${escapeHtml(a.company)}</div>

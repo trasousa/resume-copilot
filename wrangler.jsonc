@@ -10,6 +10,14 @@
 
   "observability": { "enabled": true },
 
+  // Access can only front the custom domain below, never *.workers.dev --
+  // and static assets are served before the Worker runs, so with the
+  // default workers.dev subdomain enabled the entire frontend was publicly
+  // fetchable there, un-Access'd. API routes still failed closed (no valid
+  // JWT can exist for workers.dev), but the app's structure shouldn't be
+  // public either. Disabling the subdomain closes the whole surface.
+  "workers_dev": false,
+
   // Static frontend. Served by the same Worker as the API, so there is no
   // second deploy and no cross-origin config.
   "assets": {

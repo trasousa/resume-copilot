@@ -1,4 +1,4 @@
-import { api, escapeHtml, renderNav, showError, checkApiKey, safeUrl, runStagedTask, skeletonBars } from "./app.js";
+import { api, escapeHtml, renderNav, showError, checkApiKey, safeUrl, runStagedTask, skeletonBars, matchPct } from "./app.js";
 import { mountCvDocument } from "./cv-doc.js";
 import { icon } from "./icons.js";
 
@@ -46,8 +46,8 @@ function renderStatusBlock() {
   document.getElementById("statusBlock").innerHTML = `
     <span class="status-chip ${app.stage}">${escapeHtml(app.stage)}</span>
     <p class="muted" style="margin: 8px 0 16px;">Updated ${timeAgoLabel(app.updatedAt)}</p>
-    <div class="row between"><label style="margin:0;">Match Score</label><strong>${app.matchScore != null ? app.matchScore + "%" : "—"}</strong></div>
-    ${app.matchScore != null ? `<div class="match-bar"><div class="match-bar-fill" style="width:${app.matchScore}%;"></div></div>` : ""}
+    <div class="row between"><label style="margin:0;">Match Score</label><strong>${matchPct(app.matchScore) != null ? matchPct(app.matchScore) + "%" : "—"}</strong></div>
+    ${matchPct(app.matchScore) != null ? `<div class="match-bar"><div class="match-bar-fill" style="width:${matchPct(app.matchScore)}%;"></div></div>` : ""}
     <div class="row between" style="margin-top:14px;">
       <label style="margin:0;">Applied via</label><span>${escapeHtml(app.source === "job-search" ? "Job Search" : app.source === "manual" ? "Manual" : app.source)}</span>
     </div>

@@ -111,11 +111,24 @@ async function verifyAccessJwt(request, env) {
  * only). It must never appear in wrangler.jsonc's committed `vars` block.
  */
 export async function resolveIdentity(request, env) {
+  // A real Access JWT always wins, even in SKIP_AUTH mode. X-Dev-User
+  // selects *any* identity, so a SKIP_AUTH flag leaked into a deployed
+  // environment would otherwise be a full impersonation switch. With this
+  // ordering (plus workers_dev disabled in wrangler.jsonc), every request
+  // that can reach a deployed Worker passed Access and carries a JWT that
+  // overrides the dev identity -- the leaked flag has no reachable effect.
+  // (A hostname check can't do this job: wrangler dev rewrites request.url
+  // to the configured route's production domain, so local requests are
+  // indistinguishable by URL.)
+  const verified = await verifyAccessJwt(request, env);
+  if (verified) return verified;
+
   if (env.SKIP_AUTH === "1") {
     const devUser = (request.headers.get("X-Dev-User") || "dev@local").toLowerCase();
     return { email: devUser, sub: devUser };
   }
-  return verifyAccessJwt(request, env);
+
+  return null;
 }
 
 export function requireAuth() {

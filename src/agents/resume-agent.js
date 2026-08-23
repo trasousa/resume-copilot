@@ -32,11 +32,33 @@ export class ResumeAgent extends Agent {
    * WebSocket RPC surface, which identity-stamping has no business being
    * on. DO RPC already exposes every public method to server-side callers
    * like getAgentByName(...).setIdentity(...) regardless. */
-  setIdentity(email, sub) {
+  async setIdentity(email, sub) {
     if (!this.state.sub) {
-      this.setState({ email, sub, createdAt: new Date().toISOString() });
+      const identity = { email, sub, createdAt: new Date().toISOString() };
+      // DO storage is the authoritative copy -- synced `state` is
+      // client-writable (see the trust-boundary note above), so identity
+      // must live somewhere a WebSocket peer can't reach.
+      await this.ctx.storage.put("identity", identity);
+      this.setState(identity);
     }
     return this.state;
+  }
+
+  /** Enforces the trust boundary documented above instead of merely noting
+   * it: any client state update that tampers with the identity fields gets
+   * them restored from the storage copy. Everything else in `state` stays
+   * client-writable by design. */
+  async onStateUpdate(state, source) {
+    if (source === "server") return;
+    const identity = await this.ctx.storage.get("identity");
+    if (!identity) return;
+    if (
+      state?.sub !== identity.sub ||
+      state?.email !== identity.email ||
+      state?.createdAt !== identity.createdAt
+    ) {
+      this.setState({ ...state, ...identity });
+    }
   }
 
   @callable()

@@ -144,6 +144,18 @@ export function safeUrl(url) {
   }
 }
 
+/**
+ * Match scores originate from LLM output (ranked job JSON, stored
+ * match_score rows) and are interpolated into innerHTML unescaped as badge
+ * numbers -- SQLite doesn't enforce the column's INTEGER affinity, so
+ * nothing upstream guarantees a number. Coerce to a clamped integer or
+ * null at every render site instead of trusting the source.
+ */
+export function matchPct(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : null;
+}
+
 export function renderNav(active) {
   const links = [
     ["tailor.html", "Tailor", "edit"],

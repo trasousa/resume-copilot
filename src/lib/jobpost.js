@@ -62,16 +62,31 @@ function htmlToText(html) {
 export async function fetchJobPostText(url) {
   const parsed = assertFetchable(url);
 
+  // Redirects are followed manually so every hop passes assertFetchable --
+  // with redirect: "follow", a public URL that 302s to a loopback/private
+  // address would sail past the host check entirely.
   let res;
-  try {
-    res = await fetch(parsed.href, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; ResumeCopilot/1.0)" },
-      redirect: "follow",
-    });
-  } catch {
-    const err = new Error("Couldn't reach that URL.");
-    err.status = 502;
-    throw err;
+  let current = parsed;
+  for (let hop = 0; ; hop++) {
+    try {
+      res = await fetch(current.href, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; ResumeCopilot/1.0)" },
+        redirect: "manual",
+      });
+    } catch {
+      const err = new Error("Couldn't reach that URL.");
+      err.status = 502;
+      throw err;
+    }
+
+    const location = res.headers.get("location");
+    if (res.status < 300 || res.status >= 400 || !location) break;
+    if (hop >= 5) {
+      const err = new Error("That URL redirects too many times -- paste the job post text instead.");
+      err.status = 502;
+      throw err;
+    }
+    current = assertFetchable(new URL(location, current.href).href);
   }
 
   if (!res.ok) {

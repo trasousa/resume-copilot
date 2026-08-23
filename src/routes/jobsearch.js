@@ -168,7 +168,29 @@ router.post("/search", async (c) => {
           if (rankedMatch) {
             try {
               const parsed = JSON.parse(rankedMatch[1]);
-              if (Array.isArray(parsed)) rankedJobs = parsed;
+              // The model rewrites every field when it re-emits the list, so
+              // treat the whole array as untrusted: coerce matchScore to a
+              // clamped integer (it lands in the DOM unescaped as a badge)
+              // and force the text fields back to strings. A prompt-injected
+              // job posting must not be able to smuggle markup or objects
+              // through the ranked JSON.
+              if (Array.isArray(parsed)) {
+                rankedJobs = parsed.map((j) => {
+                  const score = Number(j?.matchScore);
+                  return {
+                    ...j,
+                    title: String(j?.title ?? ""),
+                    company: String(j?.company ?? ""),
+                    location: String(j?.location ?? ""),
+                    url: String(j?.url ?? ""),
+                    compEstimate: String(j?.compEstimate ?? ""),
+                    fitNote: String(j?.fitNote ?? ""),
+                    matchScore: Number.isFinite(score)
+                      ? Math.max(0, Math.min(100, Math.round(score)))
+                      : null,
+                  };
+                });
+              }
             } catch {
               // Fall through to the unranked (but still real) merged list.
             }

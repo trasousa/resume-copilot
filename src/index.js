@@ -27,6 +27,17 @@ import usageRouter from "./routes/usage.js";
 
 const app = new Hono();
 
+// Errors thrown with a deliberate 4xx/5xx `status` carry messages written
+// for the user (cap reached, bad URL, model truncation) and pass through.
+// Anything else -- D1 failures, binding errors, plain bugs -- previously
+// leaked its raw message to the client; those now log server-side and
+// return a generic 500.
+const isDeliberate = (err) =>
+  Number.isInteger(err?.status) && err.status >= 400 && err.status <= 599;
+const publicErrorMessage = (err) =>
+  isDeliberate(err) ? err.message || "Request failed." : "Internal server error";
+const publicErrorStatus = (err) => (isDeliberate(err) ? err.status : 500);
+
 // No CORS middleware, deliberately. The frontend is served from this same
 // Worker, so it never needs one -- and the Express version's `cors()` sent
 // `Access-Control-Allow-Origin: *` with no auth behind it, which let any page
@@ -78,10 +89,7 @@ app.notFound((c) =>
 
 app.onError((err, c) => {
   console.error(err);
-  return c.json(
-    { error: err.message || "Internal server error" },
-    err.status || 500
-  );
+  return c.json({ error: publicErrorMessage(err) }, publicErrorStatus(err));
 });
 
 export { ResumeAgent };
@@ -124,8 +132,8 @@ async function handleAgentRequest(request, env) {
   } catch (err) {
     console.error(err);
     return Response.json(
-      { error: err.message || "Internal server error" },
-      { status: err.status || 500 }
+      { error: publicErrorMessage(err) },
+      { status: publicErrorStatus(err) }
     );
   }
 }
