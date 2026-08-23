@@ -1,4 +1,4 @@
-import { api, escapeHtml, renderNav, showError, checkApiKey, wireJobPostFetch, ensureCvsOrEmptyState } from "./app.js";
+import { api, escapeHtml, renderNav, showError, checkApiKey, wireJobPostFetch, ensureCvsOrEmptyState, runStagedTask, skeletonBars } from "./app.js";
 import { mountCvDocument } from "./cv-doc.js";
 import { renderMarkdown } from "./markdown.js";
 
@@ -25,24 +25,33 @@ async function loadCvs() {
     .join("");
 }
 
-document.getElementById("runBtn").onclick = async () => {
+const runBtn = document.getElementById("runBtn");
+
+runBtn.onclick = async () => {
   const cvId = cvSelect.value;
   const jobPostText = document.getElementById("jobPost").value.trim();
   if (!cvId) return alert("Add a CV first (CV Store tab).");
   if (!jobPostText) return alert("Paste a job posting first.");
 
-  statusEl.innerHTML = `<span class="spinner"></span> analyzing and tailoring…`;
-  resultEl.innerHTML = "";
+  resultEl.innerHTML = `<div class="card">${skeletonBars()}</div>`;
   try {
-    const data = await api("/tailor/quick", {
-      method: "POST",
-      body: { cvId, jobPostText, flavor: document.getElementById("flavor").value },
-    });
+    const data = await runStagedTask(
+      () => api("/tailor/quick", { method: "POST", body: { cvId, jobPostText, flavor: document.getElementById("flavor").value } }),
+      {
+        statusEl,
+        button: runBtn,
+        busyLabel: "Tailoring…",
+        stages: [
+          [0, "Reading the job post…"],
+          [4000, "Matching against your CV…"],
+          [15000, "Still working — long CVs take up to a minute."],
+        ],
+      }
+    );
     render(data);
   } catch (err) {
+    resultEl.innerHTML = "";
     showError(main, err);
-  } finally {
-    statusEl.textContent = "";
   }
 };
 

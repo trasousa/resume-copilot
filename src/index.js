@@ -23,6 +23,7 @@ import profileRouter from "./routes/profile.js";
 import outreachRouter from "./routes/outreach.js";
 import templatesRouter from "./routes/templates.js";
 import accountRouter from "./routes/account.js";
+import usageRouter from "./routes/usage.js";
 
 const app = new Hono();
 
@@ -56,6 +57,7 @@ app.route("/api/profile", profileRouter);
 app.route("/api/outreach", outreachRouter);
 app.route("/api/templates", templatesRouter);
 app.route("/api/account", accountRouter);
+app.route("/api/usage", usageRouter);
 
 app.get("/api/skills", (c) => c.json(listSkills()));
 

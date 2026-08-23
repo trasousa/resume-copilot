@@ -229,6 +229,7 @@ async function sendChat(message) {
         // instead of this API (its session cookie expired mid-chat).
         if (res.status === 401) error = "Your session expired. Reload the page to sign in again.";
       }
+      if (res.status === 429) error = (error || "Daily AI usage cap reached.") + " See the AI budget indicator in the nav for today's usage.";
       throw new Error(error || `Request failed (${res.status})`);
     }
 

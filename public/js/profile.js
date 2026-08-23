@@ -1,4 +1,4 @@
-import { api, escapeHtml, renderNav, showError } from "./app.js";
+import { api, escapeHtml, renderNav, showError, runStagedTask, skeletonBars } from "./app.js";
 import { icon } from "./icons.js";
 import { renderResumeView } from "./resume-view.js";
 
@@ -44,12 +44,20 @@ function renderOnboarding() {
 }
 
 async function parseAndPreview(cvId) {
-  const status = document.getElementById("uploadStatus");
-  if (status) status.innerHTML = `<span class="spinner"></span> reading your resume…`;
-  document.getElementById("stepBody").innerHTML = `<p class="muted"><span class="spinner"></span> Parsing your resume…</p>`;
+  document.getElementById("stepBody").innerHTML = `<p class="muted" id="parseStageStatus">Reading your resume…</p>${skeletonBars()}`;
   let parsedJson = null;
   try {
-    const result = await api(`/cvs/${cvId}/parse`, { method: "POST" });
+    const result = await runStagedTask(
+      () => api(`/cvs/${cvId}/parse`, { method: "POST" }),
+      {
+        statusEl: document.getElementById("parseStageStatus"),
+        stages: [
+          [0, "Reading your resume…"],
+          [4000, "Extracting your experience…"],
+          [15000, "Still working — long resumes take up to a minute."],
+        ],
+      }
+    );
     parsedJson = result.parsedJson;
   } catch {
     // Parsing is a nice-to-have preview, not a hard requirement -- fall

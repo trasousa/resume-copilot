@@ -1,4 +1,4 @@
-import { api, escapeHtml, renderNav, showError, ensureCvsOrEmptyState } from "./app.js";
+import { api, escapeHtml, renderNav, showError, ensureCvsOrEmptyState, runStagedTask, skeletonBars } from "./app.js";
 import { icon } from "./icons.js";
 
 renderNav("tailor.html"); // Outreach Studio is reached from the Tailor tab; keep that tab highlighted.
@@ -37,20 +37,33 @@ async function loadCvs() {
 document.getElementById("generateBtn").onclick = async () => {
   const targetRoleCompany = document.getElementById("targetRoleCompany").value.trim();
   if (!targetRoleCompany) return alert("Enter a target role / company first.");
+  const genBtn = document.getElementById("generateBtn");
   const status = document.getElementById("genStatus");
-  status.innerHTML = `<span class="spinner"></span> drafting…`;
+  const editorBody = document.getElementById("editorBody");
+  editorBody.contentEditable = "false";
+  editorBody.innerHTML = skeletonBars(2);
   try {
-    const { content } = await api("/outreach/generate", {
-      method: "POST",
-      body: { type: kind, targetRoleCompany, tone, cvId: document.getElementById("cvSelect").value },
-    });
+    const { content } = await runStagedTask(
+      () => api("/outreach/generate", { method: "POST", body: { type: kind, targetRoleCompany, tone, cvId: document.getElementById("cvSelect").value } }),
+      {
+        statusEl: status,
+        button: genBtn,
+        busyLabel: "Drafting…",
+        stages: [
+          [0, "Reading your CV…"],
+          [4000, "Writing draft…"],
+          [15000, "Still working — long drafts take up to a minute."],
+        ],
+      }
+    );
     document.getElementById("editorTitle").textContent = `${targetRoleCompany} – ${kind === "coverLetter" ? "Cover Letter" : "Cold Email"}`;
-    document.getElementById("editorBody").innerText = content;
+    editorBody.innerText = content;
     document.getElementById("savedIndicator").textContent = "";
   } catch (err) {
+    editorBody.innerText = "";
     showError(main, err);
   } finally {
-    status.textContent = "";
+    editorBody.contentEditable = "true";
   }
 };
 

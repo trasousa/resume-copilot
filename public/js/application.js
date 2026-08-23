@@ -1,4 +1,4 @@
-import { api, escapeHtml, renderNav, showError, checkApiKey, safeUrl } from "./app.js";
+import { api, escapeHtml, renderNav, showError, checkApiKey, safeUrl, runStagedTask, skeletonBars } from "./app.js";
 import { mountCvDocument } from "./cv-doc.js";
 import { icon } from "./icons.js";
 
@@ -152,14 +152,22 @@ document.getElementById("tailorBtn").onclick = async () => {
     return alert("Paste the job post text and save details first.");
   }
   const btn = document.getElementById("tailorBtn");
-  btn.disabled = true;
   const resultWrap = document.getElementById("tailorResult");
-  resultWrap.innerHTML = `<p class="muted"><span class="spinner"></span> analyzing and tailoring…</p>`;
+  resultWrap.innerHTML = `<p class="muted" id="tailorStageStatus">Reading the job post…</p>${skeletonBars()}`;
   try {
-    const { analysis, tailoredCv } = await api(`/applications/${appId}/tailor`, {
-      method: "POST",
-      body: { flavor: document.getElementById("flavor").value },
-    });
+    const { analysis, tailoredCv } = await runStagedTask(
+      () => api(`/applications/${appId}/tailor`, { method: "POST", body: { flavor: document.getElementById("flavor").value } }),
+      {
+        statusEl: document.getElementById("tailorStageStatus"),
+        button: btn,
+        busyLabel: "Tailoring…",
+        stages: [
+          [0, "Reading the job post…"],
+          [4000, "Matching against your CV…"],
+          [15000, "Still working — long CVs take up to a minute."],
+        ],
+      }
+    );
     const analysisText = analysis
       .replace(/```CV\n[\s\S]*?\n```/, "")
       .replace(/```KEYWORDS\n[\s\S]*?\n```/, "")
@@ -173,10 +181,8 @@ document.getElementById("tailorBtn").onclick = async () => {
         <p class="muted" style="margin-top:8px;">No structured tailored CV was returned — try again.</p>`;
     }
   } catch (err) {
-    showError(main, err);
     resultWrap.innerHTML = "";
-  } finally {
-    btn.disabled = false;
+    showError(main, err);
   }
 };
 
@@ -218,9 +224,25 @@ function renderDocButtons() {
 async function generateDoc(type) {
   const list = document.getElementById("vaultGrid");
   const pendingId = `pending-${type}`;
-  list.insertAdjacentHTML("afterbegin", `<div class="vault-card" id="${pendingId}"><span class="spinner"></span> generating ${escapeHtml(type)}…</div>`);
+  const btn = document.querySelector(`[data-doc="${type}"]`);
+  list.insertAdjacentHTML(
+    "afterbegin",
+    `<div class="vault-card" id="${pendingId}"><p class="muted" id="${pendingId}-status">Reading the job post…</p>${skeletonBars(2)}</div>`
+  );
   try {
-    await api(`/applications/${appId}/documents`, { method: "POST", body: { type } });
+    await runStagedTask(
+      () => api(`/applications/${appId}/documents`, { method: "POST", body: { type } }),
+      {
+        statusEl: document.getElementById(`${pendingId}-status`),
+        button: btn,
+        busyLabel: "Writing…",
+        stages: [
+          [0, "Reading the job post…"],
+          [4000, "Writing draft…"],
+          [15000, "Still working — long CVs take up to a minute."],
+        ],
+      }
+    );
     document.getElementById(pendingId)?.remove();
     renderDocs();
   } catch (err) {
