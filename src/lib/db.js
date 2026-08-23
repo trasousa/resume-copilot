@@ -428,6 +428,7 @@ const profileFromRow = (r) => ({
   remote: !!r?.remote,
   minComp: r?.min_comp ?? "",
   notes: r?.notes ?? "",
+  targetRole: r?.target_role ?? "",
   updatedAt: r?.updated_at ?? null,
 });
 
@@ -441,14 +442,14 @@ export async function saveProfile(db, p) {
   const now = new Date().toISOString();
   await db
     .prepare(
-      `INSERT INTO profile (id, city, region, country, remote, min_comp, notes, updated_at)
-       VALUES ('default', ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO profile (id, city, region, country, remote, min_comp, notes, target_role, updated_at)
+       VALUES ('default', ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          city = excluded.city, region = excluded.region, country = excluded.country,
          remote = excluded.remote, min_comp = excluded.min_comp, notes = excluded.notes,
-         updated_at = excluded.updated_at`
+         target_role = excluded.target_role, updated_at = excluded.updated_at`
     )
-    .bind(p.city || "", p.region || "", p.country || "", p.remote ? 1 : 0, p.minComp || "", p.notes || "", now)
+    .bind(p.city || "", p.region || "", p.country || "", p.remote ? 1 : 0, p.minComp || "", p.notes || "", p.targetRole || "", now)
     .run();
   return getProfile(db);
 }

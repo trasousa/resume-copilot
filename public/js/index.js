@@ -55,6 +55,7 @@ async function loadSearchProfile() {
   document.getElementById("remote").checked = p.remote;
   document.getElementById("minComp").value = p.minComp;
   document.getElementById("notes").value = p.notes;
+  document.getElementById("targetRole").value = p.targetRole || "";
 }
 
 function saveSearchProfileFromForm() {
@@ -67,6 +68,7 @@ function saveSearchProfileFromForm() {
       remote: document.getElementById("remote").checked,
       minComp: document.getElementById("minComp").value.trim(),
       notes: document.getElementById("notes").value.trim(),
+      targetRole: document.getElementById("targetRole").value.trim(),
     },
   }).catch(() => {});
 }
@@ -98,9 +100,25 @@ document.getElementById("searchBtn").onclick = async () => {
   const searchBtn = document.getElementById("searchBtn");
   searchBtn.disabled = true;
 
-  searchStatusEl.textContent = "Searching three sources and ranking matches — this can take up to two minutes.";
+  searchStatusEl.textContent = "Contacting three job sources…";
   searchProgressEl.innerHTML = "";
   searchResultEl.innerHTML = "";
+
+  // One mutable state object per search; every stream event updates it and
+  // re-renders, so real results appear the moment sources answer instead of
+  // waiting out ranking (slow LLM call) and geocoding (~1s per new city).
+  const state = { jobs: [], total: 0, text: "", rankingError: null, ranked: false, coords: null, savedKeys: new Set(), cvId };
+
+  const updateStatus = () => {
+    if (!state.jobs.length) return;
+    if (!state.ranked) {
+      searchStatusEl.textContent = `Found ${state.total} roles — showing the top ${state.jobs.length} below while they're ranked against your CV…`;
+    } else if (!state.coords) {
+      searchStatusEl.textContent = "Ranked. Placing roles on the map…";
+    } else {
+      searchStatusEl.textContent = "";
+    }
+  };
 
   try {
     const res = await fetch("/api/jobsearch/search", {
@@ -113,6 +131,7 @@ document.getElementById("searchBtn").onclick = async () => {
         country,
         remote,
         minComp: document.getElementById("minComp").value.trim(),
+        targetRole: document.getElementById("targetRole").value.trim(),
         notes: [document.getElementById("notes").value.trim(), selectedJobTypes().length ? `Job type preference: ${selectedJobTypes().join(", ")}` : ""].filter(Boolean).join(". "),
       }),
     });
@@ -130,7 +149,6 @@ document.getElementById("searchBtn").onclick = async () => {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    let finalData = null;
 
     while (true) {
       const { done: streamDone, value } = await reader.read();
@@ -148,14 +166,34 @@ document.getElementById("searchBtn").onclick = async () => {
         const data = JSON.parse(dataLine);
         if (event === "source") {
           renderProgressRow(data.source, data.status, data.status === "done" ? data.count : data.message);
+        } else if (event === "jobs") {
+          state.jobs = data.jobs || [];
+          state.total = data.total ?? state.jobs.length;
+          renderSearchResults(state);
+        } else if (event === "ranked") {
+          state.ranked = true;
+          if (data.rankingError) state.rankingError = data.rankingError;
+          else {
+            state.jobs = data.jobs || state.jobs;
+            state.text = data.text || "";
+          }
+          renderSearchResults(state);
+        } else if (event === "geo") {
+          state.coords = data.coords || {};
+          renderSearchResults(state);
         } else if (event === "complete") {
-          finalData = data;
+          state.ranked = true;
+          state.coords = state.coords || {};
+          state.jobs = data.jobs || state.jobs;
+          state.text = data.text || state.text;
+          if (data.rankingError) state.rankingError = data.rankingError;
+          renderSearchResults(state);
         }
+        updateStatus();
       }
     }
 
     saveSearchProfileFromForm();
-    if (finalData) renderSearchResults(finalData, cvId);
   } catch (err) {
     showError(document.querySelector("main"), err);
   } finally {
@@ -203,16 +241,35 @@ function renderJobMap(jobs) {
   jobMapInstance = map;
 }
 
-function renderSearchResults(data, cvId) {
-  const jobs = data.jobs || [];
-  const analysisText = data.text || "";
+/** Mirrors the backend's geocode normalizeQuery so the `geo` event's keys
+ * match up with each job's location string. */
+function normalizeLocation(location) {
+  return String(location || "").trim().toLowerCase();
+}
+
+function renderSearchResults(state) {
+  const { cvId, savedKeys } = state;
+  const analysisText = state.text || "";
+  const savedKeyOf = (j) => j.url || `${j.title}|${j.company}`;
+
+  // Coords arrive as their own event, keyed by location -- apply them at
+  // render time so ranked/geo events can land in either order. Jobs from
+  // the final `complete` event already carry lat/lng baked in.
+  const jobs = (state.jobs || []).map((j) => {
+    const coords = state.coords?.[normalizeLocation(j.location)];
+    return coords ? { ...j, lat: j.lat ?? coords.lat, lng: j.lng ?? coords.lng } : j;
+  });
 
   searchResultEl.innerHTML = `
     <div class="card">
       <h2>Results</h2>
-      <div class="doc-content">${escapeHtml(analysisText)}</div>
+      ${
+        state.ranked
+          ? `<div class="doc-content">${escapeHtml(analysisText)}</div>`
+          : `<p class="muted" style="display:flex; align-items:center; gap:8px;"><span class="skeleton-pulse"></span> Matching these roles against your CV — scores and ordering will appear here.</p>`
+      }
     </div>
-    ${data.rankingError ? `<div class="error-banner" style="background:var(--warn-soft); color:var(--warn);">Ranking failed this time (${escapeHtml(data.rankingError)}); showing unranked results.</div>` : ""}
+    ${state.rankingError ? `<div class="error-banner" style="background:var(--warn-soft); color:var(--warn);">Ranking failed this time (${escapeHtml(state.rankingError)}); showing unranked results.</div>` : ""}
     ${
       jobs.length
         ? `<div class="job-grid">${jobs
@@ -230,7 +287,7 @@ function renderSearchResults(data, cvId) {
             <p class="muted" style="margin:10px 0;">${icon("mapPin")} ${escapeHtml(j.location || "")} ${j.compEstimate ? `&nbsp;${icon("dollar")} ${escapeHtml(j.compEstimate)}` : ""}</p>
             ${j.fitNote ? `<p style="font-size:13.5px;">${escapeHtml(j.fitNote)}</p>` : ""}
             <div class="row" style="margin-top:12px;">
-              <button class="btn" data-idx="${i}" style="flex:1;">Save</button>
+              <button class="btn" data-idx="${i}" style="flex:1;" ${savedKeys.has(savedKeyOf(j)) ? "disabled" : ""}>${savedKeys.has(savedKeyOf(j)) ? "Saved" : "Save"}</button>
               ${safeUrl(j.url) ? `<a class="icon-btn" href="${escapeHtml(safeUrl(j.url))}" target="_blank" rel="noopener" title="View posting">${icon("chevronRight")}</a>` : ""}
             </div>
           </div>`
@@ -276,6 +333,10 @@ function renderSearchResults(data, cvId) {
           },
         });
 
+        // Remember across re-renders: ranked/geo events redraw the grid,
+        // and a Save that silently reverted to a live button would invite
+        // duplicate applications.
+        savedKeys.add(savedKeyOf(j));
         btn.textContent = "Saved";
         await load();
         const newCard = document.querySelector(`.app-card[data-id="${app.id}"]`);

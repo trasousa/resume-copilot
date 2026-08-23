@@ -107,6 +107,14 @@ npx wrangler d1 execute resume-copilot --remote --command="ALTER TABLE cvs ADD C
 
 Skip this on a brand-new database -- `db:init`/`db:init:local` already creates `cvs` with `parsed_json` included.
 
+**Upgrading an existing deployment** (a remote D1 database created before the `target_role` column was added to `profile`): same story. Run this once against remote before `npm run db:init`:
+
+```bash
+npx wrangler d1 execute resume-copilot --remote --command="ALTER TABLE profile ADD COLUMN target_role TEXT NOT NULL DEFAULT '';"
+```
+
+Skip this on a brand-new database -- `db:init`/`db:init:local` already creates `profile` with `target_role` included.
+
 ## Custom domain
 
 **Required for sign-in** -- see "Sign-in" below: Cloudflare Access can only attach to a real Cloudflare zone, never `*.workers.dev`. This app is configured to deploy to **`resume.btopencloud.com`** (`wrangler.jsonc`'s `routes` entry).

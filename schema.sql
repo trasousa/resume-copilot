@@ -104,6 +104,9 @@ CREATE TABLE IF NOT EXISTS profile (
   remote     INTEGER NOT NULL DEFAULT 0,
   min_comp   TEXT NOT NULL DEFAULT '',
   notes      TEXT NOT NULL DEFAULT '',
+  -- Keyword sent to the job-board APIs (e.g. "backend engineer") -- the
+  -- searches are only as relevant as this string.
+  target_role TEXT NOT NULL DEFAULT '',
   updated_at TEXT
 );
 

@@ -48,13 +48,17 @@ function toJSearchCountryCode(country) {
 }
 
 router.post("/search", async (c) => {
-  const { cvId, city, region, country, remote, minComp, notes } = await c.req.json();
+  const { cvId, city, region, country, remote, minComp, notes, targetRole } = await c.req.json();
 
   const cv = await db.resolveCv(c.env.DB, cvId);
   if (!cv)
     return c.json({ error: "No CV available. Upload or set a master CV first." }, 400);
 
-  const query = "jobs";
+  // The keyword sent to the job boards. A literal "jobs" query returns
+  // whatever the boards consider popular, not what fits this candidate --
+  // the target-role field (persisted on the profile) is what makes the
+  // source results relevant in the first place.
+  const query = String(targetRole || "").trim() || "jobs";
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -105,6 +109,12 @@ router.post("/search", async (c) => {
       // within budget while still showing a generous result set.
       const rankingCandidates = merged.slice(0, 30);
 
+      // Real results are in hand within seconds -- show them NOW. Ranking
+      // and geocoding each take tens of seconds and arrive as follow-up
+      // events (`ranked`, `geo`) that upgrade the already-visible list,
+      // instead of gating the first render behind the slowest stage.
+      send("jobs", { jobs: rankingCandidates, total: merged.length });
+
       // Rank the real, already-found listings against the candidate's CV --
       // a plain LLM call (no search capability needed), which Workers AI
       // handles fine; it's live web search specifically that Workers AI lacks.
@@ -134,32 +144,54 @@ router.post("/search", async (c) => {
       let finalText = "";
       let finalRankingError = null;
 
-      try {
-        const { text } = await runTask({ env: c.env, stable, prompt, maxTokens: 8000 });
+      // Ranking (one slow LLM call) and geocoding (up to ~1s per uncached
+      // location, Nominatim-mandated) are independent -- run them
+      // concurrently and stream each result the moment it lands. Geocoding
+      // keys by location string, not list order, so it doesn't need to wait
+      // for the ranked order. Each settles with its own event so the UI can
+      // upgrade in place; `complete` at the end carries the final combined
+      // state for anything that missed the intermediate events.
+      const rankingPromise = (async () => {
+        try {
+          const { text } = await runTask({ env: c.env, stable, prompt, maxTokens: 8000 });
 
-        let rankedJobs = rankingCandidates;
-        const rankedMatch = text.match(/```RANKED\n([\s\S]*?)\n```/);
-        if (rankedMatch) {
-          try {
-            const parsed = JSON.parse(rankedMatch[1]);
-            if (Array.isArray(parsed)) rankedJobs = parsed;
-          } catch {
-            // Fall through to the unranked (but still real) merged list.
+          let rankedJobs = rankingCandidates;
+          const rankedMatch = text.match(/```RANKED\n([\s\S]*?)\n```/);
+          if (rankedMatch) {
+            try {
+              const parsed = JSON.parse(rankedMatch[1]);
+              if (Array.isArray(parsed)) rankedJobs = parsed;
+            } catch {
+              // Fall through to the unranked (but still real) merged list.
+            }
           }
+
+          finalJobs = rankedJobs;
+          finalText = text.replace(/```RANKED\n[\s\S]*?\n```/, "").trim();
+          send("ranked", { text: finalText, jobs: finalJobs });
+        } catch (err) {
+          finalRankingError = err.message;
+          send("ranked", { rankingError: finalRankingError });
         }
+      })();
 
-        finalJobs = rankedJobs;
-        finalText = text.replace(/```RANKED\n[\s\S]*?\n```/, "").trim();
-      } catch (err) {
-        finalRankingError = err.message;
-      }
+      // Geocode each job's location (deduplicated, cached) so the frontend
+      // can render a map. Capped at 10 uncached lookups per search so the
+      // map never delays completion by more than ~10s -- jobs past the cap
+      // simply don't get a pin this time (they'll hit the cache on a later
+      // search).
+      const geocodePromise = (async () => {
+        const geocoded = await geocodeLocations(c.env.DB, rankingCandidates.map((j) => j.location), { maxUncached: 10 });
+        const coords = {};
+        for (const [key, value] of geocoded) {
+          if (value) coords[key] = value;
+        }
+        send("geo", { coords });
+        return geocoded;
+      })();
 
-      // Geocode each job's location (deduplicated, cached) so the
-      // frontend can render a map. Runs after ranking, on whichever job
-      // list ends up final either way, so it never reaches the LLM's
-      // own prompt/context and never needs duplicating across the
-      // success/error branches above.
-      const geocoded = await geocodeLocations(c.env.DB, finalJobs.map((j) => j.location));
+      const [geocoded] = await Promise.all([geocodePromise, rankingPromise]);
+
       const jobsWithCoords = finalJobs.map((j) => {
         const coords = geocoded.get(normalizeQuery(j.location));
         return { ...j, lat: coords?.lat ?? null, lng: coords?.lng ?? null };
