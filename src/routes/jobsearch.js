@@ -4,12 +4,13 @@ import { runTask } from "../lib/llm.js";
 import { fetchArbeitnowJobs } from "../lib/arbeitnow.js";
 import { fetchHimalayasJobs } from "../lib/himalayas.js";
 import { fetchJSearchJobs } from "../lib/jsearch.js";
+import { fetchTavilyJobs } from "../lib/tavily.js";
 import { dedupeJobs } from "../lib/jobdedup.js";
 import { geocodeLocations, normalizeQuery } from "../lib/geocode.js";
 
 const router = new Hono();
 
-const SOURCES = ["arbeitnow", "himalayas", "jsearch"];
+const SOURCES = ["arbeitnow", "himalayas", "jsearch", "tavily"];
 
 // JSearch needs an ISO-2 country code; Himalayas matches on full country
 // names. The same user-typed `country` field can't satisfy both, so this
@@ -68,7 +69,7 @@ router.post("/search", async (c) => {
 
       for (const source of SOURCES) send("source", { source, status: "searching" });
 
-      const [arbeitnowResult, himalayasResult, jsearchResult] = await Promise.all([
+      const [arbeitnowResult, himalayasResult, jsearchResult, tavilyResult] = await Promise.all([
         fetchArbeitnowJobs({ remote, city, region, country }).then((r) => {
           send("source", r.error ? { source: "arbeitnow", status: "error", message: r.error } : { source: "arbeitnow", status: "done", count: r.jobs.length });
           return r;
@@ -84,9 +85,16 @@ router.post("/search", async (c) => {
           send("source", r.error ? { source: "jsearch", status: "error", message: r.error } : { source: "jsearch", status: "done", count: r.jobs.length });
           return r.error === "not configured" ? { jobs: [], error: null } : r;
         }),
+        (c.env.TAVILY_API_KEY
+          ? fetchTavilyJobs({ apiKey: c.env.TAVILY_API_KEY, query, city, region, country, remote })
+          : Promise.resolve({ jobs: [], error: "not configured" })
+        ).then((r) => {
+          send("source", r.error ? { source: "tavily", status: "error", message: r.error } : { source: "tavily", status: "done", count: r.jobs.length });
+          return r.error === "not configured" ? { jobs: [], error: null } : r;
+        }),
       ]);
 
-      const merged = dedupeJobs([...arbeitnowResult.jobs, ...himalayasResult.jobs, ...jsearchResult.jobs]);
+      const merged = dedupeJobs([...arbeitnowResult.jobs, ...himalayasResult.jobs, ...jsearchResult.jobs, ...tavilyResult.jobs]);
 
       if (!merged.length) {
         send("complete", {
