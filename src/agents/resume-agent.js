@@ -1,12 +1,14 @@
 // Per-user agent: one Durable Object instance per authenticated user,
 // addressed by the Access JWT's `sub` claim (stable across email changes --
-// see src/lib/auth.js resolveIdentity and src/index.js). This file is
-// intentionally minimal -- it proves the routing/auth/observability
-// plumbing works before any real CV/tailoring logic moves here (see
-// docs/superpowers/specs/2026-08-16-resume-agent-core-design.md for the
-// full sub-project sequence).
+// see src/lib/auth.js resolveIdentity and src/index.js).
 //
-// Trust boundary, load-bearing for sub-project 2 onward: the Agents SDK
+// This instance's SQLite is where all of that user's data lives -- CVs,
+// applications, documents, activity, templates, chat, profile, and their
+// daily token count. That is the whole point: the instance boundary IS the
+// data boundary, so isolation can't be forgotten the way a WHERE clause on
+// a shared table can. Routes reach it through src/lib/store.js.
+//
+// Trust boundary, load-bearing: the Agents SDK
 // accepts a `cf_agent_state_update` WebSocket message from any non-readonly
 // connection and applies it to `state` wholesale. An authenticated user can
 // therefore overwrite their own agent's synced `state` with anything. The
@@ -122,10 +124,9 @@ export class ResumeAgent extends Agent {
   // --- data layer ------------------------------------------------------
   //
   // One method per src/lib/db.js function, same name, same arguments minus
-  // the leading handle. Routes will call these over DO RPC instead of
-  // touching D1 (see the plan's decision D2); until that cutover lands
-  // nothing calls them, which is deliberate -- this half ships dormant so
-  // the flip is a separate, revertable change.
+  // the leading handle. Routes call these over DO RPC instead of touching
+  // D1 -- see src/lib/store.js for the middleware that hands a route its
+  // caller's instance.
   //
   // Deliberately NOT @callable(): these are server-side RPC only. Making
   // them callable would put the whole data layer on the client-facing
@@ -250,12 +251,20 @@ export class ResumeAgent extends Agent {
     const source = {};
     for (const { table } of ResumeAgent.#IMPORT_TABLES) {
       const isUsage = table === "token_usage";
-      const { results } = await this.env.DB.prepare(
-        isUsage ? "SELECT * FROM token_usage WHERE day = ?" : `SELECT * FROM ${table}`
-      )
-        .bind(...(isUsage ? [today] : []))
-        .all();
-      source[table] = results;
+      try {
+        const { results } = await this.env.DB.prepare(
+          isUsage ? "SELECT * FROM token_usage WHERE day = ?" : `SELECT * FROM ${table}`
+        )
+          .bind(...(isUsage ? [today] : []))
+          .all();
+        source[table] = results;
+      } catch {
+        // A deployment created after the migration has no legacy tables at
+        // all -- schema.sql only builds the shared ones now. Nothing to
+        // import from a table that was never there, which is a normal
+        // outcome here, not a failure.
+        source[table] = [];
+      }
     }
 
     const counts = Object.fromEntries(
@@ -351,20 +360,6 @@ export class ResumeAgent extends Agent {
     return { imported: inserted, found: counts, dropped, missing, importedAt: now };
   }
 
-  /** Temporary: proves the schema applied and that two identities get two
-   * genuinely separate stores. Removed once the cutover is verified (PR5
-   * of the migration plan). */
-  #selftest() {
-    const counts = {};
-    for (const table of ["cvs", "applications", "documents", "activity_events", "templates", "chat_messages", "profile", "token_usage"]) {
-      counts[table] = this.ctx.storage.sql.exec(`SELECT COUNT(*) AS n FROM ${table}`).one().n;
-    }
-    const row = this.ctx.storage.sql
-      .exec("SELECT value FROM schema_meta WHERE key = ?", SCHEMA_VERSION_KEY)
-      .toArray()[0];
-    return { sub: this.state.sub, schemaVersion: row ? Number(row.value) : 0, counts };
-  }
-
   /** Plain HTTP path for curl-based verification -- real clients (sub-project
    * 6) will use the @callable() RPC methods above over WebSocket instead. */
   async onRequest(request) {
@@ -373,9 +368,6 @@ export class ResumeAgent extends Agent {
     // prefix, so the full path always arrives here unchanged.
     if (url.pathname === "/agents/resume-agent/ping") {
       return Response.json(this.ping());
-    }
-    if (url.pathname === "/agents/resume-agent/selftest") {
-      return Response.json(this.#selftest());
     }
     return new Response("Not found", { status: 404 });
   }
