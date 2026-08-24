@@ -4,111 +4,38 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231D4E4B'/%3E%3Ctext x='16' y='23' font-family='Arial,sans-serif' font-size='19' font-weight='700' fill='white' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E" />
-  <title>Application Tracker · Resume Copilot</title>
+  <title>The Desk · Resume Copilot</title>
   <link rel="stylesheet" href="css/styles.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
   <div id="topnav"></div>
   <main>
-    <h1 id="mastheadStatement">Loading your applications…</h1>
+    <header class="desk-masthead">
+      <p class="dateline" id="dateline"></p>
+      <h1 class="desk-statement" id="mastheadStatement">Loading your applications…</h1>
+    </header>
 
-    <div id="statTiles" class="ledger-line"></div>
+    <div class="desk-body">
+      <section>
+        <h2 class="section-rule">On your desk today</h2>
+        <ol class="queue-list" id="attentionQueue"></ol>
+      </section>
 
-    <div id="activityGraph"></div>
-
-    <details class="card" id="comparePanel">
-      <summary><h2 style="display:inline;">Compare</h2></summary>
-      <div class="table-wrap">
-        <table id="compareTable">
-          <thead>
-            <tr>
-              <th data-sort="company">Company / Role</th>
-              <th data-sort="stage">Stage</th>
-              <th data-sort="match">Match</th>
-              <th data-sort="comp">Comp</th>
-              <th data-sort="location">Location</th>
-            </tr>
-          </thead>
-          <tbody id="compareTableBody"></tbody>
-        </table>
-      </div>
-    </details>
-
-    <details class="card" id="searchPane">
-      <summary><h2 style="display:inline;">Find roles</h2></summary>
-      <div id="searchPaneBody">
-        <label>CV to match against</label>
-        <select id="cvSelect"></select>
-
-        <label>Target role</label>
-        <input type="text" id="targetRole" placeholder="e.g. backend engineer, data scientist" />
-
-        <div class="grid cols-3">
-          <div><label>City</label><input type="text" id="city" /></div>
-          <div><label>Region/State</label><input type="text" id="region" /></div>
-          <div><label>Country</label><input type="text" id="country" /></div>
-        </div>
-
-        <label><input type="checkbox" id="remote" style="width:auto; display:inline-block;" /> Include / prefer fully remote roles</label>
-
-        <label>Minimum target compensation (optional)</label>
-        <input type="text" id="minComp" placeholder="e.g. €80,000" />
-
-        <label>Other preferences (optional)</label>
-        <input type="text" id="notes" placeholder="e.g. prefer ML/data roles, avoid agencies" />
-
-        <label>Job type</label>
-        <div class="row" id="jobTypeChips">
-          <button type="button" class="chip active" data-type="full-time">Full-time</button>
-          <button type="button" class="chip" data-type="contract">Contract</button>
-          <button type="button" class="chip" data-type="remote">Remote</button>
-        </div>
-
-        <div class="row" style="margin-top:12px;">
-          <button class="btn" id="searchBtn">Search</button>
-          <span id="status" class="muted"></span>
-        </div>
-      </div>
-      <div id="searchProgress" class="search-progress"></div>
-      <div id="result"></div>
-    </details>
-
-    <div id="staleNotice"></div>
-
-    <div id="board" class="board"></div>
-  </main>
-
-  <dialog id="newAppDialog">
-    <div class="card">
-      <h2>New application</h2>
-      <div id="newAppCvHint"></div>
-      <label>Company</label>
-      <input type="text" id="f-company" />
-      <label>Role</label>
-      <input type="text" id="f-role" />
-      <label>Location</label>
-      <input type="text" id="f-location" placeholder="Berlin, Remote, ..." />
-      <label>Posting link (optional)</label>
-      <div class="row">
-        <input type="text" id="f-link" style="flex:1;" />
-        <button type="button" class="btn secondary small" id="f-fetch">Fetch job post</button>
-      </div>
-      <span id="f-fetch-status" class="muted"></span>
-      <label>Job post text (paste it here, or fetch it from the link above, so the right skills can tailor your CV, cover letter, etc. to it)</label>
-      <textarea id="f-jobpost" rows="6"></textarea>
-      <label>Starting stage</label>
-      <select id="f-stage">
-        <option value="saved">Saved</option>
-        <option value="applied">Applied</option>
-      </select>
-      <div class="row" style="margin-top:16px; justify-content:flex-end;">
-        <button class="btn secondary" id="cancelNewApp">Cancel</button>
-        <button class="btn" id="saveNewApp">Create</button>
-      </div>
+      <section>
+        <h2 class="section-rule">Pipeline digest</h2>
+        <div id="statTiles" class="ledger-line"></div>
+        <div class="stage-strip" id="stageStrip"></div>
+      </section>
     </div>
-  </dialog>
+
+    <footer class="colophon">
+      <div id="activityGraph"></div>
+      <div class="colophon-notes">
+        <span id="colophonBudget"></span>
+        <span id="colophonUpdated"></span>
+      </div>
+    </footer>
+  </main>
 
   <script type="module" src="js/index.js"></script>
 </body>

@@ -156,27 +156,36 @@ export function matchPct(value) {
   return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : null;
 }
 
+/**
+ * The editorial masthead bar shared by every page: wordmark, section links
+ * in small caps, budget meter, New Application, avatar menu. `active` is the
+ * href of the current section (unchanged signature -- pages that aren't a
+ * top-level section pass "" or the section they belong under).
+ */
 export function renderNav(active) {
   const links = [
-    ["tailor.html", "Tailor", "edit"],
-    ["index.html", "Applications", "list"],
+    ["index.html", "Desk"],
+    ["pipeline.html", "Pipeline"],
+    ["search.html", "Search"],
+    ["cv-store.html", "CV Store"],
+    ["tailor.html", "Tailor"],
   ];
   const el = document.getElementById("topnav");
   if (!el) return;
   el.innerHTML = `
     <header class="topbar">
       <a href="index.html" class="brand"><span class="brand-mark">R</span> Resume Copilot</a>
-      <nav class="tabs">
+      <nav class="sections">
         ${links
           .map(
-            ([href, label, iconName]) =>
-              `<a href="${href}" class="${active === href ? "active" : ""}">${icon(iconName)}${label}</a>`
+            ([href, label]) =>
+              `<a href="${href}" class="${active === href ? "active" : ""}">${escapeHtml(label)}</a>`
           )
           .join("")}
       </nav>
       <div class="row" style="gap: 10px; position: relative;">
-        <span class="muted" id="aiBudgetIndicator"></span>
-        <a class="btn" href="index.html?new=1" id="topnavNewApp">${icon("plus")} New Application</a>
+        <span class="budget-meter" id="aiBudgetIndicator"></span>
+        <a class="btn" href="pipeline.html?new=1" id="topnavNewApp">${icon("plus")} New Application</a>
         <button class="avatar-circle" id="avatarMenuBtn" title="Profile & Settings" style="border:none; cursor:pointer;">?</button>
         <div class="avatar-menu" id="avatarMenu" style="display:none;">
           <a href="profile.html">${icon("user")} Profile &amp; Settings</a>
@@ -212,8 +221,12 @@ export function renderNav(active) {
   fetch("/api/usage")
     .then((r) => r.json())
     .then(({ used, cap }) => {
-      const pct = Math.round((used / cap) * 100);
-      document.getElementById("aiBudgetIndicator").textContent = `AI budget: ${pct}% used today`;
+      const pct = Math.max(0, Math.min(100, Math.round((used / cap) * 100)));
+      const meter = document.getElementById("aiBudgetIndicator");
+      meter.title = `AI budget: ${pct}% of today's token allowance used`;
+      meter.innerHTML = `
+        <span class="budget-meter-track"><span class="budget-meter-fill${pct >= 80 ? " high" : ""}" style="width:${pct}%;"></span></span>
+        <span class="budget-meter-label">${pct}%</span>`;
     })
     .catch(() => {});
 }
@@ -235,6 +248,20 @@ export function timeAgo(iso) {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
+}
+
+export function daysSince(iso) {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+}
+
+/** Staleness thresholds per stage. Shared because the Desk's attention queue
+ * and the Pipeline's stalled notice must agree on what "stalled" means. */
+export function isStale(app) {
+  const days = daysSince(app.stageEnteredAt);
+  if (app.stage === "applied" && days >= 14) return true;
+  if (app.stage === "screening" && days >= 10) return true;
+  if (app.stage === "interview" && days >= 7) return true;
+  return false;
 }
 
 export async function checkApiKey() {
