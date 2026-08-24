@@ -39,6 +39,20 @@ const COUNTRY_NAME_TO_CODE = {
   "belgium": "be",
 };
 
+/** Takes one job from each source in turn until every list is exhausted,
+ * so a downstream cap trims each source evenly instead of dropping the
+ * last ones entirely. Empty lists simply drop out. */
+function interleave(lists) {
+  const out = [];
+  const longest = Math.max(0, ...lists.map((l) => l.length));
+  for (let i = 0; i < longest; i++) {
+    for (const list of lists) {
+      if (i < list.length) out.push(list[i]);
+    }
+  }
+  return out;
+}
+
 function toJSearchCountryCode(country) {
   const key = String(country || "").trim().toLowerCase();
   if (!key) return "us";
@@ -93,7 +107,16 @@ router.post("/search", async (c) => {
         }),
       ]);
 
-      const merged = dedupeJobs([...arbeitnowResult.jobs, ...himalayasResult.jobs, ...jsearchResult.jobs, ...tavilyResult.jobs]);
+      // Round-robin across sources rather than concatenating them, because
+      // the 30-job cap below truncates whatever comes last. Concatenated,
+      // Arbeitnow's ~29 results filled the cap on their own and every
+      // Tavily posting -- the source that returns individual ATS listings
+      // rather than board aggregates -- was silently discarded before
+      // ranking ever saw it. Interleaving gives each source a fair share of
+      // the budget and leaves dedupe to settle genuine overlaps.
+      const merged = dedupeJobs(
+        interleave([arbeitnowResult.jobs, himalayasResult.jobs, jsearchResult.jobs, tavilyResult.jobs])
+      );
 
       if (!merged.length) {
         send("complete", {
