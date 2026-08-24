@@ -31,7 +31,7 @@ function selectedJobTypes() {
 async function loadSearchCvs() {
   const cvs = await api("/cvs").catch(() => []);
   if (!cvs.length) {
-    searchPaneBody.innerHTML = `<p class="muted">Job search needs a CV to match against — add one from <a href="cv-store.html">CV Store</a> first.</p>`;
+    searchPaneBody.innerHTML = `<p class="muted">Job search needs a CV to match against — add one in the <a href="studio.html">Studio</a> first.</p>`;
     return false;
   }
   cvSelect.innerHTML = cvs

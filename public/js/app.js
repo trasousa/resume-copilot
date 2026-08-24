@@ -60,7 +60,7 @@ export function wireJobPostFetch({ linkInput, fetchBtn, jobPostTextarea, statusE
 
 /**
  * Onboarding gate: fetches the CV list and, if it's empty, replaces
- * `container`'s content with an empty state pointing at CV Store instead of
+ * `container`'s content with an empty state pointing at the Studio instead of
  * a form that has nothing to act on. Returns the CV list on success, or
  * `null` after rendering the empty state so callers can bail out early.
  */
@@ -72,9 +72,9 @@ export async function ensureCvsOrEmptyState(container, message) {
       <h2>Add your first CV to get started</h2>
       <p class="muted">${escapeHtml(
         message ||
-          "Upload a CV or paste its text in the CV Store. From there you can improve it and start tailoring it to job postings."
+          "Upload a CV or paste its text in the Studio. From there you can improve it and start tailoring it to job postings."
       )}</p>
-      <a class="btn" href="cv-store.html">Go to CV Store</a>
+      <a class="btn" href="studio.html">Go to Studio</a>
     </div>`;
   return null;
 }
@@ -167,8 +167,7 @@ export function renderNav(active) {
     ["index.html", "Desk"],
     ["pipeline.html", "Pipeline"],
     ["search.html", "Search"],
-    ["cv-store.html", "CV Store"],
-    ["tailor.html", "Tailor"],
+    ["studio.html", "Studio"],
   ];
   const el = document.getElementById("topnav");
   if (!el) return;

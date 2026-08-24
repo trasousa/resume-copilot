@@ -590,22 +590,6 @@ nav.sections { flex: 1; }
 .vault-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; background: var(--rc-surface-container-low); }
 .vault-card-title { font-weight: 700; margin: 8px 0 6px; }
 
-/* CV Store: cv-store.js renders each stored CV as a plain `.row.between`
-   list item with no dedicated class hook (its markup/behavior is out of
-   scope for this pass), so we scope by the #cvList container instead and
-   give each row the same card treatment as .vault-card above. The
-   `!important` on padding is needed only because cv-store.js sets an
-   inline `padding:10px 0` on each row — border-bottom is already inline
-   at the same value as our full border, so it composes without a clash. */
-#cvList > .row.between {
-  background: var(--rc-surface-container-low);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 14px 16px !important;
-  margin-bottom: 10px;
-}
-#cvList > .row.between:last-child { margin-bottom: 0; }
 
 .chip {
   padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-soft);
@@ -690,12 +674,6 @@ details.card[open] summary::before { transform: rotate(90deg); }
 .markdown-body li { margin-bottom: 4px; }
 .markdown-body code { background: var(--rc-surface-container-low); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
 
-#studioSplit.jd-collapsed { grid-template-columns: 320px 1fr; }
-#studioSplit.jd-collapsed #jdPane:not([open]) textarea,
-#studioSplit.jd-collapsed #jdPane:not([open]) .row,
-#studioSplit.jd-collapsed #jdPane:not([open]) label,
-#studioSplit.jd-collapsed #jdPane:not([open]) select { display: none; }
-#studioSplit.jd-collapsed #jdPane:not([open]) .outreach-callout { margin-top: 10px; }
 
 .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
 @media (max-width: 1100px) { .compare-grid { grid-template-columns: 1fr; } }
@@ -829,3 +807,172 @@ details.card[open] summary::before { transform: rotate(90deg); }
 
 .search-rail { position: sticky; top: 88px; }
 @media (max-width: 900px) { .search-rail { position: static; } }
+
+/* --- Studio (CV library + working bench) ----------------------------------- */
+
+/* The library is the index of the workspace; the bench is the page. Asymmetric
+   on purpose -- the rail is a table of contents, not a second column of equal
+   weight. */
+.studio-layout { display: grid; grid-template-columns: 300px 1fr; gap: 40px; align-items: start; }
+@media (max-width: 1000px) { .studio-layout { grid-template-columns: 1fr; gap: 28px; } }
+
+.studio-rail { position: sticky; top: 88px; }
+@media (max-width: 1000px) { .studio-rail { position: static; } }
+
+.cv-rail { display: flex; flex-direction: column; }
+
+.cv-row {
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  padding-left: 0;
+  transition: border-color 0.15s ease, padding-left 0.15s ease;
+}
+.cv-row:first-child { padding-top: 0; }
+.cv-row:hover .cv-row-title { color: var(--accent); }
+.cv-row.active { border-left-color: var(--accent); padding-left: 12px; }
+
+.cv-row-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  transition: color 0.15s ease;
+}
+.cv-row-meta { font-size: 11.5px; color: var(--ink-soft); margin-top: 3px; }
+.cv-row-actions { display: none; flex-wrap: wrap; gap: 12px; margin-top: 9px; }
+.cv-row.active .cv-row-actions { display: flex; }
+
+/* Row actions read as editorial footnote links, not a cluster of buttons. */
+.cv-row-action {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-soft);
+  text-decoration: none;
+  cursor: pointer;
+}
+.cv-row-action:hover { color: var(--accent); text-decoration: underline; }
+.cv-row-action.danger:hover { color: var(--danger); }
+
+.rail-note { font-size: 12.5px; color: var(--ink-soft); margin: 0; }
+
+details.intake { margin-top: 22px; border-top: 1px solid var(--ink); padding-top: 14px; }
+details.intake > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  color: var(--ink-soft);
+}
+details.intake > summary::-webkit-details-marker { display: none; }
+details.intake > summary::before { content: "+"; margin-right: 8px; }
+details.intake[open] > summary::before { content: "–"; }
+.intake-block + .intake-block { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.intake-block h3 { font-family: var(--font-body); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); margin: 0 0 8px; }
+
+/* Bench: the working area. Its two modes are a section bar, not tabs in a box. */
+.bench-tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--ink); margin-bottom: 6px; }
+.bench-tab {
+  position: relative;
+  background: none;
+  border: none;
+  padding: 0 0 8px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.bench-tab:hover { color: var(--ink); }
+.bench-tab.active { color: var(--ink); font-weight: 700; }
+.bench-tab.active::after { content: ""; position: absolute; left: 0; bottom: -1px; width: 100%; height: 2px; background: var(--accent); }
+
+.bench-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 14px 0 18px; }
+.bench-kicker { margin: 0; font-size: 12.5px; color: var(--ink-soft); }
+.bench-kicker strong { color: var(--ink); font-family: var(--font-display); font-size: 15px; }
+
+.tailor-form { display: grid; grid-template-columns: 200px 1fr; gap: 0 24px; align-items: start; }
+@media (max-width: 800px) { .tailor-form { grid-template-columns: 1fr; } }
+
+/* --- Application dossier ---------------------------------------------------- */
+
+.dossier-back { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em; text-decoration: none; }
+.dossier-back:hover { text-decoration: underline; }
+
+.dossier-masthead { border-bottom: 3px double var(--ink); padding-bottom: 20px; margin: 14px 0 0; }
+.dossier-headline {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 3.8vw, 40px);
+  font-weight: 600;
+  line-height: 1.14;
+  letter-spacing: -0.012em;
+  margin: 0;
+  max-width: 24ch;
+}
+.dossier-standfirst { margin: 12px 0 0; font-size: 14.5px; color: var(--ink-soft); }
+
+/* Facts as a ledger of rules, not a grid of cards. */
+.fact-ledger { border-bottom: 1px solid var(--border); margin: 0 0 30px; }
+.fact-row {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+}
+.fact-row:last-child { border-bottom: none; }
+.fact-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--ink-soft); }
+.fact-value { font-family: var(--font-display); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.fact-value .muted { font-family: var(--font-body); }
+@media (max-width: 620px) { .fact-row { grid-template-columns: 1fr; gap: 2px; } }
+
+.dossier-body { display: grid; grid-template-columns: 1.55fr 1fr; gap: 44px; align-items: start; }
+@media (max-width: 1000px) { .dossier-body { grid-template-columns: 1fr; gap: 30px; } }
+.dossier-section + .dossier-section { margin-top: 38px; }
+.dossier-rail { position: sticky; top: 88px; }
+@media (max-width: 1000px) { .dossier-rail { position: static; } }
+
+/* Dated editorial timeline: the date is the margin, the entry is the column. */
+.record-list { list-style: none; margin: 0; padding: 0; }
+.record-entry { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.record-entry:first-child { padding-top: 0; }
+.record-entry:last-child { border-bottom: none; }
+.record-date { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--ink-soft); }
+.record-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; line-height: 1.3; margin: 3px 0 0; }
+.record-detail { font-size: 12.5px; color: var(--ink-soft); margin: 3px 0 0; }
+
+/* Generated documents as a readable index: title, dateline, body on demand. */
+.doc-index { margin: 0; }
+.doc-entry { border-bottom: 1px solid var(--border); padding: 4px 0; }
+.doc-entry > summary { cursor: pointer; list-style: none; padding: 12px 0; display: flex; align-items: baseline; gap: 12px; }
+.doc-entry > summary::-webkit-details-marker { display: none; }
+.doc-entry-title { font-family: var(--font-display); font-size: 17px; font-weight: 600; flex: 1; }
+.doc-entry > summary:hover .doc-entry-title { color: var(--accent); }
+.doc-entry-date { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-soft); }
+.doc-entry-body { font-size: 14px; line-height: 1.7; white-space: pre-wrap; padding: 4px 0 16px; max-width: 68ch; }
+.doc-entry-actions { display: flex; gap: 14px; padding-bottom: 14px; }
+.doc-pending { padding: 14px 0; border-bottom: 1px solid var(--border); }
+
+.doc-maker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+/* Deep-linked control (?focus=…): a brief tint so the reader's eye lands on
+   the thing the link promised, without a persistent highlight. */
+@keyframes focusFlash {
+  from { background: var(--rc-tag-yellow); }
+  to { background: transparent; }
+}
+.focus-flash { animation: focusFlash 2.2s ease-out both; border-radius: 6px; }
+
+.danger-note { margin-top: 34px; padding-top: 14px; border-top: 1px solid var(--border); }

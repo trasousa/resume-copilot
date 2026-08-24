@@ -42,7 +42,7 @@ async function openNewAppDialog() {
   hint.innerHTML = "";
   const cvs = await api("/cvs").catch(() => []);
   if (!cvs.length) {
-    hint.innerHTML = `<p class="muted" style="margin: -4px 0 12px;">No CV in the store yet — you can save this application now, but tailoring needs one from <a href="cv-store.html">CV Store</a> first.</p>`;
+    hint.innerHTML = `<p class="muted" style="margin: -4px 0 12px;">No CV in the library yet — you can save this application now, but tailoring needs one from the <a href="studio.html">Studio</a> first.</p>`;
   }
 }
 document.getElementById("cancelNewApp").onclick = () => dialog.close();

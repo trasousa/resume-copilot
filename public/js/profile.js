@@ -179,7 +179,7 @@ function renderStep3() {
   document.getElementById("stepSubtitle").textContent = "Head to Applications to search for roles and track them.";
   document.getElementById("stepBody").innerHTML = `
     <div class="row" style="justify-content:center; gap: 12px; padding: 20px 0;">
-      <a class="btn" href="index.html">${icon("list")} Go to Applications</a>
+      <a class="btn" href="index.html">${icon("list")} Go to the Desk</a>
     </div>`;
   document.getElementById("skipBtn").style.display = "none";
   document.getElementById("backBtn").style.display = "none";
@@ -197,7 +197,7 @@ async function renderSettled(cvs) {
       <div class="card">
         <h2>Master resume</h2>
         <p class="muted">${escapeHtml(master.label)} ${master.isMaster ? "(master)" : ""}</p>
-        <a class="btn secondary small" href="cv-store.html">Manage in CV Store</a>
+        <a class="btn secondary small" href="studio.html">Manage in Studio</a>
       </div>
       <div class="card">
         <h2>Job search preferences</h2>

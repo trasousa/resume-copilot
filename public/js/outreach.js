@@ -1,7 +1,7 @@
 import { api, escapeHtml, renderNav, showError, ensureCvsOrEmptyState, runStagedTask, skeletonBars } from "./app.js";
 import { icon } from "./icons.js";
 
-renderNav("tailor.html"); // Outreach Studio is reached from the Tailor tab; keep that tab highlighted.
+renderNav("studio.html"); // Outreach Studio is reached from the Studio's Tailor bench; keep that section highlighted.
 document.getElementById("saveTemplateBtn").innerHTML = icon("folder");
 
 const main = document.querySelector("main");
