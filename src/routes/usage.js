@@ -5,7 +5,6 @@
 // instead of users only finding out when a 429 hits mid-task.
 
 import { Hono } from "hono";
-import * as db from "../lib/db.js";
 import { DAILY_TOKEN_CAP } from "../lib/llm.js";
 
 const router = new Hono();
@@ -16,7 +15,7 @@ function today() {
 
 router.get("/", async (c) => {
   const day = today();
-  const used = await db.getTokenUsage(c.env.DB, day);
+  const used = await c.var.store.getTokenUsage(day);
   return c.json({ used, cap: DAILY_TOKEN_CAP, day });
 });
 

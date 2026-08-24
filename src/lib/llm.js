@@ -9,9 +9,14 @@
 // records its own usage after finishing. The last call that pushes a day
 // over the cap is still allowed to complete -- the cap blocks the *next*
 // call, not mid-call.
+//
+// The cap is counted per user, not per deployment: callers pass their
+// request's `store` (the caller's own agent -- see src/lib/store.js), and
+// the running total lives in that agent's storage. Before the cutover this
+// counter sat in the one shared D1, where a single user could exhaust the
+// day's budget for everybody.
 
 import * as workersai from "./workersai.js";
-import * as db from "./db.js";
 
 // Exported so src/routes/usage.js can report {used, cap} without duplicating
 // the number (and risking it drifting out of sync with the actual gate).
@@ -21,8 +26,8 @@ function today() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD, UTC
 }
 
-async function assertUnderCap(env) {
-  const used = await db.getTokenUsage(env.DB, today());
+async function assertUnderCap(store) {
+  const used = await store.getTokenUsage(today());
   if (used >= DAILY_TOKEN_CAP) {
     const err = new Error(
       `Daily AI usage cap reached (${DAILY_TOKEN_CAP} tokens/day, all ` +
@@ -33,15 +38,15 @@ async function assertUnderCap(env) {
   }
 }
 
-async function recordUsage(env, usage) {
+async function recordUsage(store, usage) {
   const tokens = (usage?.input ?? 0) + (usage?.output ?? 0);
-  if (tokens > 0) await db.addTokenUsage(env.DB, today(), tokens);
+  if (tokens > 0) await store.addTokenUsage(today(), tokens);
 }
 
 export async function runTask(args) {
-  await assertUnderCap(args.env);
+  await assertUnderCap(args.store);
   const result = await workersai.runTask(args);
-  await recordUsage(args.env, result.usage);
+  await recordUsage(args.store, result.usage);
   return result;
 }
 
@@ -64,7 +69,7 @@ export function runChatStream(args) {
         );
 
       try {
-        await assertUnderCap(args.env);
+        await assertUnderCap(args.store);
       } catch (err) {
         send("error", { error: err.message });
         controller.close();
@@ -75,7 +80,7 @@ export function runChatStream(args) {
       const upstream = workersai.runChatStream({
         ...args,
         onDone: async (reply, usage) => {
-          await recordUsage(args.env, usage);
+          await recordUsage(args.store, usage);
           if (userOnDone) await userOnDone(reply);
         },
       });

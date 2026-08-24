@@ -5,11 +5,10 @@
 // `templates` table for why this isn't just another `documents` row).
 
 import { Hono } from "hono";
-import * as db from "../lib/db.js";
 
 const router = new Hono();
 
-router.get("/", async (c) => c.json(await db.listTemplates(c.env.DB)));
+router.get("/", async (c) => c.json(await c.var.store.listTemplates()));
 
 router.post("/", async (c) => {
   const { kind, label, tone, targetRoleCompany, content } = await c.req.json();
@@ -18,7 +17,7 @@ router.post("/", async (c) => {
   if (!label?.trim()) return c.json({ error: "label is required" }, 400);
   if (!content?.trim()) return c.json({ error: "content is required" }, 400);
 
-  const template = await db.createTemplate(c.env.DB, {
+  const template = await c.var.store.createTemplate({
     id: crypto.randomUUID(),
     kind,
     label: label.trim(),
@@ -31,13 +30,13 @@ router.post("/", async (c) => {
 });
 
 router.post("/:id/use", async (c) => {
-  const template = await db.getTemplate(c.env.DB, c.req.param("id"));
+  const template = await c.var.store.getTemplate(c.req.param("id"));
   if (!template) return c.json({ error: "Template not found" }, 404);
-  return c.json(await db.touchTemplate(c.env.DB, template.id));
+  return c.json(await c.var.store.touchTemplate(template.id));
 });
 
 router.delete("/:id", async (c) => {
-  await db.deleteTemplate(c.env.DB, c.req.param("id"));
+  await c.var.store.deleteTemplate(c.req.param("id"));
   return c.body(null, 204);
 });
 

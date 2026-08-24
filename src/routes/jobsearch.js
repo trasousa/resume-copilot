@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import * as db from "../lib/db.js";
 import { runTask } from "../lib/llm.js";
 import { fetchArbeitnowJobs } from "../lib/arbeitnow.js";
 import { fetchHimalayasJobs } from "../lib/himalayas.js";
@@ -51,7 +50,7 @@ function toJSearchCountryCode(country) {
 router.post("/search", async (c) => {
   const { cvId, city, region, country, remote, minComp, notes, targetRole } = await c.req.json();
 
-  const cv = await db.resolveCv(c.env.DB, cvId);
+  const cv = await c.var.store.resolveCv(cvId);
   if (!cv)
     return c.json({ error: "No CV available. Upload or set a master CV first." }, 400);
 
@@ -161,7 +160,7 @@ router.post("/search", async (c) => {
       // state for anything that missed the intermediate events.
       const rankingPromise = (async () => {
         try {
-          const { text } = await runTask({ env: c.env, stable, prompt, maxTokens: 8000 });
+          const { text } = await runTask({ env: c.env, store: c.var.store, stable, prompt, maxTokens: 8000 });
 
           let rankedJobs = rankingCandidates;
           const rankedMatch = text.match(/```RANKED\n([\s\S]*?)\n```/);

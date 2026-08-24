@@ -1,5 +1,16 @@
-// D1 access. Every function takes the D1 binding (env.DB) as its first
+// SQL access. Every function takes its database handle as the first
 // argument -- Workers have no module-level connection to hold.
+//
+// That handle is no longer D1: routes reach these functions through the
+// caller's own agent (src/agents/resume-agent.js), which passes a D1-shaped
+// facade over its Durable Object's SQLite (src/agents/sql-shim.js). Keeping
+// the handle a parameter is what made that move a re-pointing rather than a
+// rewrite. The statements below run unchanged against either.
+//
+// Two behavioral differences to keep in mind when editing: DO SQLite
+// enforces foreign keys (D1 does not), and each call is a Durable Object
+// RPC round trip, so prefer one function doing several statements over
+// several chatty calls.
 //
 // Rows are snake_case in SQL and camelCase over the wire, so the frontend
 // keeps working unchanged. The row<->object mapping lives here and nowhere

@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import * as db from "../lib/db.js";
 import { extractText } from "../lib/parse.js";
 import { putOriginal, deleteOriginal } from "../lib/r2.js";
 import { cvTextToDocxBuffer, docxFilename } from "../lib/docxOut.js";
@@ -19,11 +18,11 @@ const summarize = (cv) => ({
 });
 
 router.get("/", async (c) =>
-  c.json((await db.listCvs(c.env.DB)).map(summarize))
+  c.json((await c.var.store.listCvs()).map(summarize))
 );
 
 router.get("/:id", async (c) => {
-  const cv = await db.getCv(c.env.DB, c.req.param("id"));
+  const cv = await c.var.store.getCv(c.req.param("id"));
   return cv ? c.json(cv) : c.json({ error: "CV not found" }, 404);
 });
 
@@ -31,7 +30,7 @@ router.post("/", async (c) => {
   const { label, content, isMaster } = await c.req.json();
   if (!content?.trim()) return c.json({ error: "content is required" }, 400);
 
-  const cv = await db.createCv(c.env.DB, {
+  const cv = await c.var.store.createCv({
     id: crypto.randomUUID(),
     label: label || "Untitled CV",
     content,
@@ -67,7 +66,7 @@ router.post("/upload", async (c) => {
     originalKey = await putOriginal(c.env.ORIGINALS, id, file.name, file.type, buffer);
   }
 
-  const cv = await db.createCv(c.env.DB, {
+  const cv = await c.var.store.createCv({
     id,
     label: form.get("label") || file.name.replace(/\.[^.]+$/, ""),
     content,
@@ -85,7 +84,7 @@ router.post("/upload", async (c) => {
 
 router.post("/:id/parse", async (c) => {
   const id = c.req.param("id");
-  const cv = await db.getCv(c.env.DB, id);
+  const cv = await c.var.store.getCv(id);
   if (!cv) return c.json({ error: "CV not found" }, 404);
 
   const stable =
@@ -104,7 +103,7 @@ router.post("/:id/parse", async (c) => {
     `"bullets": string[]}], "education": [{"degree": string, "school": ` +
     `string, "dates": string}], "skills": string[]}`;
 
-  const { text } = await runTask({ env: c.env, stable, prompt, maxTokens: 4000 });
+  const { text } = await runTask({ env: c.env, store: c.var.store, stable, prompt, maxTokens: 4000 });
 
   let parsedJson;
   try {
@@ -114,29 +113,29 @@ router.post("/:id/parse", async (c) => {
   }
   if (!parsedJson) return c.json({ error: "Couldn't parse the resume into structured fields. Try again, or continue without it." }, 502);
 
-  await db.updateCvParsedJson(c.env.DB, id, parsedJson);
+  await c.var.store.updateCvParsedJson(id, parsedJson);
   return c.json({ ...cv, parsedJson });
 });
 
 router.patch("/:id/master", async (c) => {
   const id = c.req.param("id");
-  if (!(await db.getCv(c.env.DB, id)))
+  if (!(await c.var.store.getCv(id)))
     return c.json({ error: "CV not found" }, 404);
-  return c.json(await db.setMasterCv(c.env.DB, id));
+  return c.json(await c.var.store.setMasterCv(id));
 });
 
 router.delete("/:id", async (c) => {
   const id = c.req.param("id");
-  const cv = await db.getCv(c.env.DB, id);
+  const cv = await c.var.store.getCv(id);
   if (cv?.originalKey && c.env.ORIGINALS) {
     await deleteOriginal(c.env.ORIGINALS, cv.originalKey).catch(() => {});
   }
-  await db.deleteCv(c.env.DB, id);
+  await c.var.store.deleteCv(id);
   return c.body(null, 204);
 });
 
 router.get("/:id/download", async (c) => {
-  const cv = await db.getCv(c.env.DB, c.req.param("id"));
+  const cv = await c.var.store.getCv(c.req.param("id"));
   if (!cv) return c.json({ error: "CV not found" }, 404);
 
   const buffer = await cvTextToDocxBuffer(cv.content);
@@ -148,7 +147,7 @@ router.get("/:id/download", async (c) => {
 });
 
 router.get("/:id/original", async (c) => {
-  const cv = await db.getCv(c.env.DB, c.req.param("id"));
+  const cv = await c.var.store.getCv(c.req.param("id"));
   if (!cv?.originalKey)
     return c.json({ error: "No original file stored for this CV." }, 404);
   if (!c.env.ORIGINALS)
@@ -169,7 +168,7 @@ const extractCvBlock = (text) =>
   text.match(/```CV\n([\s\S]*?)\n```/)?.[1].trim() || null;
 
 router.get("/:id/chat", async (c) =>
-  c.json(await db.listChatMessages(c.env.DB, c.req.param("id")))
+  c.json(await c.var.store.listChatMessages(c.req.param("id")))
 );
 
 router.post("/:id/chat", async (c) => {
@@ -177,11 +176,11 @@ router.post("/:id/chat", async (c) => {
   const { message } = await c.req.json();
   if (!message?.trim()) return c.json({ error: "message is required" }, 400);
 
-  const cv = await db.getCv(c.env.DB, cvId);
+  const cv = await c.var.store.getCv(cvId);
   if (!cv) return c.json({ error: "CV not found" }, 404);
 
   const now = new Date().toISOString();
-  await db.addChatMessage(c.env.DB, {
+  await c.var.store.addChatMessage({
     id: crypto.randomUUID(),
     cvId,
     role: "user",
@@ -189,7 +188,7 @@ router.post("/:id/chat", async (c) => {
     createdAt: now,
   });
 
-  const history = (await db.listChatMessages(c.env.DB, cvId)).map((m) => ({
+  const history = (await c.var.store.listChatMessages(cvId)).map((m) => ({
     role: m.role,
     content: m.content,
   }));
@@ -209,11 +208,12 @@ router.post("/:id/chat", async (c) => {
 
   const stream = runChatStream({
     env: c.env,
+    store: c.var.store,
     stable,
     volatile: `Current CV:\n"""\n${cv.content}\n"""`,
     messages: history,
     onDone: async (reply) => {
-      await db.addChatMessage(c.env.DB, {
+      await c.var.store.addChatMessage({
         id: crypto.randomUUID(),
         cvId,
         role: "assistant",
@@ -236,10 +236,10 @@ router.post("/:id/chat/accept", async (c) => {
   const { content, label } = await c.req.json();
   if (!content) return c.json({ error: "content is required" }, 400);
 
-  const parent = await db.getCv(c.env.DB, c.req.param("id"));
+  const parent = await c.var.store.getCv(c.req.param("id"));
   if (!parent) return c.json({ error: "CV not found" }, 404);
 
-  const cv = await db.createCv(c.env.DB, {
+  const cv = await c.var.store.createCv({
     id: crypto.randomUUID(),
     label: label || `${parent.label} (revised)`,
     content,

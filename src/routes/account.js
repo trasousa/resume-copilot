@@ -1,11 +1,14 @@
 // src/routes/account.js
 //
-// Account deletion. See db.js's deleteAllData for why this wipes
-// everything rather than scoping to "one user's rows" -- there is no
-// per-user row to scope to in this app's current data model.
+// Account deletion. Scoped to the caller by construction: `store` is this
+// user's own Durable Object, so wiping every table in it reaches exactly
+// their data and nobody else's. (Before the agent cutover this genuinely
+// did wipe the whole deployment -- there was one shared D1 with no owner
+// column to scope to.)
+//
+// R2 objects are not in that store, so they're deleted explicitly below.
 
 import { Hono } from "hono";
-import * as db from "../lib/db.js";
 import { deleteOriginal } from "../lib/r2.js";
 
 const router = new Hono();
@@ -15,11 +18,11 @@ router.delete("/", async (c) => {
   if (confirm !== "DELETE")
     return c.json({ error: 'Send {"confirm":"DELETE"} to confirm this irreversible action.' }, 400);
 
-  const cvs = await db.listCvs(c.env.DB);
-  await db.deleteAllData(c.env.DB);
+  const cvs = await c.var.store.listCvs();
+  await c.var.store.deleteAllData();
 
   if (c.env.ORIGINALS) {
-    // db.listCvs() (unlike the route-layer summarize() in cvs.js) already
+    // listCvs() (unlike the route-layer summarize() in cvs.js) already
     // returns the raw row shape including originalKey, so no per-CV re-fetch
     // is needed here.
     for (const cv of cvs) {

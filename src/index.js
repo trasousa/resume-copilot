@@ -9,6 +9,7 @@ import { Hono } from "hono";
 
 import { listSkills } from "./lib/skills.js";
 import { requireAuth, currentUser, resolveIdentity } from "./lib/auth.js";
+import { withStore } from "./lib/store.js";
 import { ResumeAgent } from "./agents/resume-agent.js";
 import { getAgentByName } from "agents";
 import { subscribe } from "agents/observability";
@@ -51,6 +52,12 @@ const publicErrorStatus = (err) => (isDeliberate(err) ? err.status : 500);
 // Worker) and your Zero Trust policy.
 app.use("/api/*", requireAuth());
 
+// Every /api/* route reads and writes the caller's own agent, never a
+// shared database -- see src/lib/store.js. Mounted immediately after
+// requireAuth() because it depends on the verified identity that
+// middleware sets.
+app.use("/api/*", withStore());
+
 // `sub` is echoed alongside `email` so the owner can read their own stable
 // identifier out of the running app and paste it into wrangler.jsonc's
 // LEGACY_OWNER_SUB -- there is otherwise no way to see it (it comes from the
@@ -77,22 +84,6 @@ app.route("/api/templates", templatesRouter);
 app.route("/api/account", accountRouter);
 app.route("/api/usage", usageRouter);
 
-// Scoped to /api/admin/* on purpose. This is the same identity -> agent-stub
-// bridge every route will get at the cutover (PR3 of the migration plan,
-// where it moves into src/lib/store.js and mounts on all of /api/*), but
-// mounting it that widely now would pay a Durable Object round trip on every
-// request for a stub only one route reads. Everything else still talks to
-// c.env.DB until the flip.
-app.use("/api/admin/*", async (c, next) => {
-  const user = c.get("user"); // set by requireAuth() above; /api/* is never unauthenticated
-  const store = await getAgentByName(c.env.RESUME_AGENT, user.sub);
-  // Same stamping as handleAgentRequest below -- a no-op after the first
-  // call, and what guarantees the agent knows its own `sub` before
-  // importLegacyD1 uses it to claim the legacy rows.
-  await store.setIdentity(user.email, user.sub);
-  c.set("store", store);
-  return next();
-});
 app.route("/api/admin", adminRouter);
 
 app.get("/api/skills", (c) => c.json(listSkills()));
