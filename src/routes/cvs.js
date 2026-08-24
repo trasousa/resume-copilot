@@ -63,7 +63,7 @@ router.post("/upload", async (c) => {
   // moment the upload completes. Optional: the app still works without it.
   let originalKey = null;
   if (c.env.ORIGINALS) {
-    originalKey = await putOriginal(c.env.ORIGINALS, id, file.name, file.type, buffer);
+    originalKey = await putOriginal(c.env.ORIGINALS, c.get("user").sub, id, file.name, file.type, buffer);
   }
 
   const cv = await c.var.store.createCv({

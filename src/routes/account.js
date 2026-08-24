@@ -9,7 +9,7 @@
 // R2 objects are not in that store, so they're deleted explicitly below.
 
 import { Hono } from "hono";
-import { deleteOriginal } from "../lib/r2.js";
+import { deleteOriginal, deleteAllOriginalsFor } from "../lib/r2.js";
 
 const router = new Hono();
 
@@ -22,12 +22,19 @@ router.delete("/", async (c) => {
   await c.var.store.deleteAllData();
 
   if (c.env.ORIGINALS) {
+    // Two passes, because two key shapes exist. The rows carry the exact
+    // keys, which is the only way to reach objects written before keys were
+    // user-prefixed. The prefix sweep then catches anything under this
+    // user's namespace that no row points at -- orphans from uploads whose
+    // CV row was already deleted.
+    //
     // listCvs() (unlike the route-layer summarize() in cvs.js) already
     // returns the raw row shape including originalKey, so no per-CV re-fetch
     // is needed here.
     for (const cv of cvs) {
       if (cv.originalKey) await deleteOriginal(c.env.ORIGINALS, cv.originalKey).catch(() => {});
     }
+    await deleteAllOriginalsFor(c.env.ORIGINALS, c.get("user").sub).catch(() => {});
   }
 
   return c.body(null, 204);
