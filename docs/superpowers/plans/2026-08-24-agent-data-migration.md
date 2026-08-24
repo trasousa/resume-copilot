@@ -193,6 +193,24 @@ permanently own the legacy data.)
      budget from importing).
    - Set `legacyImportedAt`; return `{ imported: {...counts} }`.
 
+**Implementation notes from PR2 (landed 2026-08-24)** — two hazards the plan
+did not anticipate, both found by testing against a production-shaped legacy
+table:
+- **Columns absent from the legacy table must be omitted from the INSERT**,
+  not bound as NULL. Production's `profile` predates `target_role` (which is
+  `NOT NULL DEFAULT ''`), so binding NULL violates the constraint — and
+  `INSERT OR IGNORE` then *silently discards the row*. Naming only the
+  columns each source row actually has lets SQLite apply its own DEFAULT.
+  The same shape applies to `match_score` on older `applications` tables.
+- **Report rows actually written, never source counts.** Because `INSERT OR
+  IGNORE` swallows violations, echoing the D1 counts turns silent data loss
+  into a success message. Count via a before/after `COUNT(*)` delta —
+  `SqlStorageCursor.rowsWritten` is a billing metric that includes index
+  entries and over-reports (1 row into an indexed table read as 3). The
+  result now returns `imported` (real), `found` (source), `dropped` (bad FK
+  refs) and `missing` (the unexplained remainder, which should always be
+  empty).
+
 Idempotent three ways: DO marker, D1 claim row, `INSERT OR IGNORE` on
 preserved keys. **D1 rows are not deleted by the import** — archive stays;
 dropping is a deliberate later manual act (PR5 documents the command).

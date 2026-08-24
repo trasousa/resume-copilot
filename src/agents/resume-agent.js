@@ -174,6 +174,183 @@ export class ResumeAgent extends Agent {
 
   deleteAllData() { return db.deleteAllData(this.#db); }
 
+  // --- legacy import ---------------------------------------------------
+  //
+  // See docs/superpowers/plans/2026-08-24-agent-data-migration.md decision
+  // D3. Everything before multi-tenancy lived in one shared D1 database;
+  // this copies those rows into the owner's agent exactly once.
+  //
+  // Runs inside the DO on purpose: `this.env.DB` is bound here too, so the
+  // whole copy is one RPC with no rows crossing the boundary.
+
+  /** Column lists are explicit rather than derived from the source rows so a
+   * legacy D1 table that drifted from schema.sql (the `match_score` ALTER
+   * TABLE footgun documented there) still imports -- an absent column reads
+   * back as undefined and lands as NULL instead of producing a malformed
+   * INSERT. Order matters: parents before children, because DO SQLite
+   * *enforces* the foreign keys D1 ignores (D7, confirmed empirically).
+   *
+   * That same asymmetry means the legacy rows can contain references D1
+   * happily stored but SQLite will reject -- a document whose application
+   * was deleted, an application pointing at a long-gone CV. `fk` says what
+   * to do with those: `nullable` ones import with the reference cleared
+   * (matching the column's own ON DELETE SET NULL), the rest are dropped,
+   * because a NOT NULL reference to a row that doesn't exist isn't data
+   * worth carrying over. Either way one bad row must not abort the import. */
+  static #IMPORT_TABLES = [
+    { table: "cvs", columns: ["id", "label", "content", "is_master", "parent_id", "source_file", "original_key", "original_filename", "parsed_json", "created_at"] },
+    { table: "applications", columns: ["id", "company", "role", "location", "link", "source", "job_post_text", "cv_id", "stage", "stage_entered_at", "applied_at", "comp_estimate", "match_score", "notes", "created_at", "updated_at"], fk: { column: "cv_id", parent: "cvs", nullable: true } },
+    { table: "documents", columns: ["id", "application_id", "type", "content", "created_at"], fk: { column: "application_id", parent: "applications" } },
+    { table: "activity_events", columns: ["id", "application_id", "type", "title", "detail", "occurred_at", "created_at"], fk: { column: "application_id", parent: "applications" } },
+    { table: "templates", columns: ["id", "kind", "label", "tone", "target_role_company", "content", "created_at", "last_used_at"] },
+    { table: "chat_messages", columns: ["id", "cv_id", "role", "content", "created_at"], fk: { column: "cv_id", parent: "cvs" } },
+    { table: "profile", columns: ["id", "city", "region", "country", "remote", "min_comp", "notes", "target_role", "updated_at"] },
+    // Only today's row, and only ever today's: importing the full history
+    // would either hand this user a fresh budget or retroactively spend one.
+    { table: "token_usage", columns: ["day", "tokens"] },
+  ];
+
+  /**
+   * Copies the pre-multi-tenant D1 rows into this instance. Idempotent three
+   * ways -- a DO-storage marker, a D1 claim row, and INSERT OR IGNORE on
+   * preserved primary keys -- and never deletes anything from D1.
+   *
+   * Returns a plain result object instead of throwing, deliberately: DO RPC
+   * drops custom Error properties (see the note at the top of this file), so
+   * a thrown `err.status` would reach the route as an opaque 500. The route
+   * maps these tags to HTTP codes -- see src/routes/admin.js.
+   */
+  async importLegacyD1({ dryRun = false } = {}) {
+    const identity = await this.ctx.storage.get("identity");
+    const sub = identity?.sub;
+    // Nothing to claim with. Can't happen through the route (the middleware
+    // stamps identity first), so treat it as a bug, not a user error.
+    if (!sub) return { error: "no-identity" };
+
+    if (await this.ctx.storage.get("legacyImportedAt")) {
+      return { skipped: "already-imported" };
+    }
+
+    const now = new Date().toISOString();
+    // Insert-then-read rather than read-then-insert: the read alone races,
+    // the conditional insert can't. Whoever's row survives the ON CONFLICT
+    // is the owner, including when that's a previous call of our own.
+    await this.env.DB.prepare(
+      `INSERT INTO legacy_claim (id, claimed_by_sub, claimed_at) VALUES ('default', ?, ?)
+       ON CONFLICT(id) DO NOTHING`
+    )
+      .bind(sub, now)
+      .run();
+    const claim = await this.env.DB.prepare(
+      "SELECT claimed_by_sub FROM legacy_claim WHERE id = 'default'"
+    ).first();
+    if (claim?.claimed_by_sub !== sub) return { skipped: "claimed-by-other" };
+
+    const today = now.slice(0, 10); // YYYY-MM-DD, UTC -- matches llm.js's cap window
+    const source = {};
+    for (const { table } of ResumeAgent.#IMPORT_TABLES) {
+      const isUsage = table === "token_usage";
+      const { results } = await this.env.DB.prepare(
+        isUsage ? "SELECT * FROM token_usage WHERE day = ?" : `SELECT * FROM ${table}`
+      )
+        .bind(...(isUsage ? [today] : []))
+        .all();
+      source[table] = results;
+    }
+
+    const counts = Object.fromEntries(
+      Object.entries(source).map(([table, rows]) => [table, rows.length])
+    );
+    if (dryRun) return { dryRun: true, counts };
+
+    const sql = this.ctx.storage.sql;
+    const ids = (table) => new Set(source[table].map((r) => r.id));
+    const dropped = {};
+    const inserted = {};
+
+    this.ctx.storage.transactionSync(() => {
+      for (const { table, columns, fk } of ResumeAgent.#IMPORT_TABLES) {
+        const parentIds = fk ? ids(fk.parent) : null;
+        // Counted as a before/after delta rather than from the cursor:
+        // SqlStorageCursor.rowsWritten is a billing-style metric that counts
+        // index entries too, so a single insert into an indexed table
+        // reports as several "rows written".
+        const rowCount = () => sql.exec(`SELECT COUNT(*) AS n FROM ${table}`).one().n;
+        const before = rowCount();
+
+        for (let row of source[table]) {
+          if (fk && !parentIds.has(row[fk.column])) {
+            if (!fk.nullable) {
+              dropped[table] = (dropped[table] || 0) + 1;
+              continue;
+            }
+            row = { ...row, [fk.column]: null };
+          }
+
+          // Only name the columns this legacy row actually has. A D1 table
+          // that predates a column (production's `profile` has no
+          // `target_role`; the `match_score` ALTER TABLE has the same shape)
+          // yields rows missing it -- naming it anyway would bind NULL, and
+          // NULL into a NOT NULL DEFAULT '' column is a constraint violation
+          // that INSERT OR IGNORE then swallows, silently dropping the row.
+          // Omitting it lets SQLite apply the column's own DEFAULT instead.
+          const present = columns.filter((col) => row[col] !== undefined);
+          // ids are preserved, never regenerated: every cv_id/application_id
+          // reference in the other tables (and every R2 original_key) points
+          // at them, so renumbering would silently orphan the lot.
+          const values = present.map((col) =>
+            // cvs.parent_id references cvs(id), so a child inserted before
+            // its parent would fail the FK check. Forcing NULL on the way in
+            // and restoring it in the second pass below sidesteps the
+            // ordering problem entirely -- no PRAGMA, no deferred
+            // constraints.
+            table === "cvs" && col === "parent_id" ? null : row[col] ?? null
+          );
+          sql.exec(
+            `INSERT OR IGNORE INTO ${table} (${present.join(", ")}) ` +
+              `VALUES (${present.map(() => "?").join(", ")})`,
+            ...values
+          );
+        }
+
+        inserted[table] = rowCount() - before;
+
+        if (table === "cvs") {
+          const present = ids("cvs");
+          for (const row of source.cvs) {
+            // A parent_id pointing at a CV that no longer exists stays NULL:
+            // the constraint would reject it, and NULL is what the column's
+            // own ON DELETE SET NULL would have produced anyway.
+            if (!row.parent_id || !present.has(row.parent_id)) continue;
+            // Guarded on parent_id IS NULL so this only ever fills in the
+            // blanks this same import just left, never overwrites a value
+            // the live app wrote.
+            sql.exec(
+              "UPDATE cvs SET parent_id = ? WHERE id = ? AND parent_id IS NULL",
+              row.parent_id,
+              row.id
+            );
+          }
+        }
+      }
+    });
+
+    // Marker last: written only once the transaction committed, so a failure
+    // anywhere above leaves the import re-runnable (the claim row is already
+    // ours, and INSERT OR IGNORE makes the retry safe).
+    await this.ctx.storage.put("legacyImportedAt", now);
+    // `imported` counts rows SQLite actually wrote, not rows read out of D1:
+    // INSERT OR IGNORE swallows constraint violations, so reporting the
+    // source counts here would turn silent data loss into a success message.
+    // `found` keeps the source side visible so a mismatch is obvious.
+    const missing = Object.fromEntries(
+      Object.entries(counts)
+        .map(([table, n]) => [table, n - (inserted[table] ?? 0) - (dropped[table] ?? 0)])
+        .filter(([, n]) => n > 0)
+    );
+    return { imported: inserted, found: counts, dropped, missing, importedAt: now };
+  }
+
   /** Temporary: proves the schema applied and that two identities get two
    * genuinely separate stores. Removed once the cutover is verified (PR5
    * of the migration plan). */

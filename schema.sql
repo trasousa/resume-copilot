@@ -129,6 +129,21 @@ CREATE TABLE IF NOT EXISTS geocode_cache (
   cached_at  TEXT NOT NULL
 );
 
+-- One-row ledger recording which user claimed the pre-multi-tenant data in
+-- the tables above, so the legacy import (POST /api/admin/import-legacy ->
+-- ResumeAgent#importLegacyD1) can only ever run for one identity. It has to
+-- live in D1 rather than in the agent because the whole point is
+-- cross-instance mutual exclusion: a marker inside a Durable Object can't
+-- stop a *different* Durable Object from importing the same rows.
+--
+-- The import never DELETEs from D1 -- these tables stay as a read-only
+-- archive until the owner drops them by hand (see README).
+CREATE TABLE IF NOT EXISTS legacy_claim (
+  id             TEXT PRIMARY KEY DEFAULT 'default',
+  claimed_by_sub TEXT NOT NULL,
+  claimed_at     TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_cvs_created      ON cvs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_apps_updated     ON applications(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_docs_application ON documents(application_id, created_at);

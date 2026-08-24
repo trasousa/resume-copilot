@@ -24,6 +24,7 @@ import outreachRouter from "./routes/outreach.js";
 import templatesRouter from "./routes/templates.js";
 import accountRouter from "./routes/account.js";
 import usageRouter from "./routes/usage.js";
+import adminRouter from "./routes/admin.js";
 
 const app = new Hono();
 
@@ -50,9 +51,15 @@ const publicErrorStatus = (err) => (isDeliberate(err) ? err.status : 500);
 // Worker) and your Zero Trust policy.
 app.use("/api/*", requireAuth());
 
-app.get("/api/auth/me", async (c) =>
-  c.json({ email: (await currentUser(c))?.email || null })
-);
+// `sub` is echoed alongside `email` so the owner can read their own stable
+// identifier out of the running app and paste it into wrangler.jsonc's
+// LEGACY_OWNER_SUB -- there is otherwise no way to see it (it comes from the
+// Access JWT, which the browser never shows you). It's an identifier, not a
+// credential, and it's only ever the caller's own.
+app.get("/api/auth/me", async (c) => {
+  const user = await currentUser(c);
+  return c.json({ email: user?.email || null, sub: user?.sub || null });
+});
 
 // --- api --------------------------------------------------------------------
 
@@ -69,6 +76,24 @@ app.route("/api/outreach", outreachRouter);
 app.route("/api/templates", templatesRouter);
 app.route("/api/account", accountRouter);
 app.route("/api/usage", usageRouter);
+
+// Scoped to /api/admin/* on purpose. This is the same identity -> agent-stub
+// bridge every route will get at the cutover (PR3 of the migration plan,
+// where it moves into src/lib/store.js and mounts on all of /api/*), but
+// mounting it that widely now would pay a Durable Object round trip on every
+// request for a stub only one route reads. Everything else still talks to
+// c.env.DB until the flip.
+app.use("/api/admin/*", async (c, next) => {
+  const user = c.get("user"); // set by requireAuth() above; /api/* is never unauthenticated
+  const store = await getAgentByName(c.env.RESUME_AGENT, user.sub);
+  // Same stamping as handleAgentRequest below -- a no-op after the first
+  // call, and what guarantees the agent knows its own `sub` before
+  // importLegacyD1 uses it to claim the legacy rows.
+  await store.setIdentity(user.email, user.sub);
+  c.set("store", store);
+  return next();
+});
+app.route("/api/admin", adminRouter);
 
 app.get("/api/skills", (c) => c.json(listSkills()));
 
