@@ -18,6 +18,10 @@ export async function api(path, options = {}) {
       // there's nothing this app itself can do about that.
       if (res.status === 401) message = "Your session expired. Reload the page to sign in again.";
     }
+    // The daily cap message from src/lib/llm.js already explains the reset
+    // time; point at the nav indicator too so the user knows where to check
+    // remaining budget before retrying.
+    if (res.status === 429) message += " See the AI budget indicator in the nav for today's usage.";
     throw new Error(message);
   }
   if (res.status === 204) return null;
@@ -56,7 +60,7 @@ export function wireJobPostFetch({ linkInput, fetchBtn, jobPostTextarea, statusE
 
 /**
  * Onboarding gate: fetches the CV list and, if it's empty, replaces
- * `container`'s content with an empty state pointing at CV Store instead of
+ * `container`'s content with an empty state pointing at the Studio instead of
  * a form that has nothing to act on. Returns the CV list on success, or
  * `null` after rendering the empty state so callers can bail out early.
  */
@@ -68,11 +72,56 @@ export async function ensureCvsOrEmptyState(container, message) {
       <h2>Add your first CV to get started</h2>
       <p class="muted">${escapeHtml(
         message ||
-          "Upload a CV or paste its text in the CV Store. From there you can improve it and start tailoring it to job postings."
+          "Upload a CV or paste its text in the Studio. From there you can improve it and start tailoring it to job postings."
       )}</p>
-      <a class="btn" href="cv-store.html">Go to CV Store</a>
+      <a class="btn" href="studio.html">Go to Studio</a>
     </div>`;
   return null;
+}
+
+/**
+ * Runs a one-shot (non-streamed) AI call with elapsed-time-aware status text
+ * and a disabled/relabeled trigger button. runTask() (src/lib/llm.js) has no
+ * streaming hook to hang progress off of -- this is the substitute: an
+ * immediate staged message, swapped out for later ones (typically a "still
+ * working" message) as the call runs long. `stages` is a list of
+ * [delayMs, text] pairs; the delay-0 entry shows immediately.
+ */
+export async function runStagedTask(fn, { statusEl, stages = [], button, busyLabel } = {}) {
+  const prevLabel = button?.textContent;
+  if (button) {
+    button.disabled = true;
+    if (busyLabel) button.textContent = busyLabel;
+  }
+  const timers = [];
+  if (statusEl) {
+    for (const [delay, text] of stages) {
+      if (delay === 0) statusEl.textContent = text;
+      else timers.push(setTimeout(() => { statusEl.textContent = text; }, delay));
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    timers.forEach((t) => window.clearTimeout(t));
+    if (statusEl) statusEl.textContent = "";
+    if (button) {
+      button.disabled = false;
+      if (busyLabel) button.textContent = prevLabel;
+    }
+  }
+}
+
+/**
+ * A few pulsing placeholder bars shaped like the card about to arrive --
+ * the same `.skeleton-pulse` vocabulary the search pane's per-source rows
+ * use, just stacked instead of following inline text.
+ */
+export function skeletonBars(n = 3) {
+  return Array.from(
+    { length: n },
+    (_, i) => `<p class="muted"><span class="skeleton-pulse" style="width:${180 - i * 20}px;"></span></p>`
+  ).join("");
 }
 
 export function escapeHtml(str) {
@@ -95,26 +144,47 @@ export function safeUrl(url) {
   }
 }
 
+/**
+ * Match scores originate from LLM output (ranked job JSON, stored
+ * match_score rows) and are interpolated into innerHTML unescaped as badge
+ * numbers -- SQLite doesn't enforce the column's INTEGER affinity, so
+ * nothing upstream guarantees a number. Coerce to a clamped integer or
+ * null at every render site instead of trusting the source.
+ */
+export function matchPct(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : null;
+}
+
+/**
+ * The editorial masthead bar shared by every page: wordmark, section links
+ * in small caps, budget meter, New Application, avatar menu. `active` is the
+ * href of the current section (unchanged signature -- pages that aren't a
+ * top-level section pass "" or the section they belong under).
+ */
 export function renderNav(active) {
   const links = [
-    ["tailor.html", "Tailor", "edit"],
-    ["index.html", "Applications", "list"],
+    ["index.html", "Desk"],
+    ["pipeline.html", "Pipeline"],
+    ["search.html", "Search"],
+    ["studio.html", "Studio"],
   ];
   const el = document.getElementById("topnav");
   if (!el) return;
   el.innerHTML = `
     <header class="topbar">
       <a href="index.html" class="brand"><span class="brand-mark">R</span> Resume Copilot</a>
-      <nav class="tabs">
+      <nav class="sections">
         ${links
           .map(
-            ([href, label, iconName]) =>
-              `<a href="${href}" class="${active === href ? "active" : ""}">${icon(iconName)}${label}</a>`
+            ([href, label]) =>
+              `<a href="${href}" class="${active === href ? "active" : ""}">${escapeHtml(label)}</a>`
           )
           .join("")}
       </nav>
       <div class="row" style="gap: 10px; position: relative;">
-        <a class="btn" href="index.html?new=1" id="topnavNewApp">${icon("plus")} New Application</a>
+        <span class="budget-meter" id="aiBudgetIndicator"></span>
+        <a class="btn" href="pipeline.html?new=1" id="topnavNewApp">${icon("plus")} New Application</a>
         <button class="avatar-circle" id="avatarMenuBtn" title="Profile & Settings" style="border:none; cursor:pointer;">?</button>
         <div class="avatar-menu" id="avatarMenu" style="display:none;">
           <a href="profile.html">${icon("user")} Profile &amp; Settings</a>
@@ -144,6 +214,20 @@ export function renderNav(active) {
       }
     })
     .catch(() => {});
+
+  // Once per page load, non-critical -- a failed fetch just leaves the
+  // indicator blank instead of blocking or erroring the nav.
+  fetch("/api/usage")
+    .then((r) => r.json())
+    .then(({ used, cap }) => {
+      const pct = Math.max(0, Math.min(100, Math.round((used / cap) * 100)));
+      const meter = document.getElementById("aiBudgetIndicator");
+      meter.title = `AI budget: ${pct}% of today's token allowance used`;
+      meter.innerHTML = `
+        <span class="budget-meter-track"><span class="budget-meter-fill${pct >= 80 ? " high" : ""}" style="width:${pct}%;"></span></span>
+        <span class="budget-meter-label">${pct}%</span>`;
+    })
+    .catch(() => {});
 }
 
 export function showError(container, err) {
@@ -163,6 +247,20 @@ export function timeAgo(iso) {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
+}
+
+export function daysSince(iso) {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+}
+
+/** Staleness thresholds per stage. Shared because the Desk's attention queue
+ * and the Pipeline's stalled notice must agree on what "stalled" means. */
+export function isStale(app) {
+  const days = daysSince(app.stageEnteredAt);
+  if (app.stage === "applied" && days >= 14) return true;
+  if (app.stage === "screening" && days >= 10) return true;
+  if (app.stage === "interview" && days >= 7) return true;
+  return false;
 }
 
 export async function checkApiKey() {

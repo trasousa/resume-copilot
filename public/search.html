@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231D4E4B'/%3E%3Ctext x='16' y='23' font-family='Arial,sans-serif' font-size='19' font-weight='700' fill='white' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E" />
+  <title>Search · Resume Copilot</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+  <div id="topnav"></div>
+  <main>
+    <header class="workspace-masthead">
+      <p class="workspace-kicker">Search</p>
+      <h1 class="workspace-statement">Find roles worth your next application.</h1>
+    </header>
+
+    <div class="workspace-split">
+      <aside class="search-rail">
+        <div id="searchPaneBody">
+          <label>CV to match against</label>
+          <select id="cvSelect"></select>
+
+          <label>Target role</label>
+          <input type="text" id="targetRole" placeholder="e.g. backend engineer, data scientist" />
+
+          <label>City</label>
+          <input type="text" id="city" />
+          <label>Region/State</label>
+          <input type="text" id="region" />
+          <label>Country</label>
+          <input type="text" id="country" />
+
+          <label><input type="checkbox" id="remote" style="width:auto; display:inline-block;" /> Include / prefer fully remote roles</label>
+
+          <label>Minimum target compensation (optional)</label>
+          <input type="text" id="minComp" placeholder="e.g. €80,000" />
+
+          <label>Other preferences (optional)</label>
+          <input type="text" id="notes" placeholder="e.g. prefer ML/data roles, avoid agencies" />
+
+          <label>Job type</label>
+          <div class="row" id="jobTypeChips">
+            <button type="button" class="chip active" data-type="full-time">Full-time</button>
+            <button type="button" class="chip" data-type="contract">Contract</button>
+            <button type="button" class="chip" data-type="remote">Remote</button>
+          </div>
+
+          <div class="row" style="margin-top:16px;">
+            <button class="btn" id="searchBtn">Search</button>
+          </div>
+        </div>
+      </aside>
+
+      <section>
+        <p id="status" class="muted"></p>
+        <div id="searchProgress" class="search-progress"></div>
+        <div id="result"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module" src="js/search.js"></script>
+</body>
+</html>

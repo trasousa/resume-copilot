@@ -10,65 +10,80 @@
 <body>
   <div id="topnav"></div>
   <main>
-    <a href="index.html" class="muted">&larr; Back to Applications</a>
-    <div id="header" style="margin-top:10px;"></div>
+    <a href="pipeline.html" class="dossier-back">&larr; Back to Pipeline</a>
 
-    <div class="grid cols-2" style="grid-template-columns: 360px 1fr;">
+    <header class="dossier-masthead">
+      <p class="dateline" id="dossierDateline"></p>
+      <h1 class="dossier-headline" id="dossierHeadline">Opening the file…</h1>
+      <p class="dossier-standfirst" id="dossierStandfirst"></p>
+    </header>
+
+    <div class="fact-ledger" id="factLedger"></div>
+
+    <div class="dossier-body">
       <div>
-        <div class="card">
-          <h2>Current Status</h2>
-          <div id="statusBlock"></div>
-        </div>
-        <div class="card">
-          <h2>Activity</h2>
-          <div id="activityTimeline"></div>
-          <button class="btn secondary small" id="addReminderBtn" style="margin-top:10px;">Add Reminder</button>
-        </div>
-        <div class="card">
-          <h2>Details</h2>
+        <section class="dossier-section" id="tailorSection">
+          <h2 class="section-rule">Tailored CV</h2>
+          <p class="muted" id="cvStatus">No tailored CV yet.</p>
+          <div class="row" style="align-items:flex-end; margin-top:12px;">
+            <div style="min-width:220px;">
+              <label>Role flavor</label>
+              <select id="flavor">
+                <option value="">General</option>
+                <option value="tech">Tech / Engineering / PM</option>
+                <option value="executive">Executive / C-suite</option>
+                <option value="academic">Academic</option>
+                <option value="creative">Creative / Design</option>
+                <option value="careerChange">Career change</option>
+              </select>
+            </div>
+            <button class="btn" id="tailorBtn">Tailor CV to this posting</button>
+          </div>
+          <div id="tailorResult"></div>
+        </section>
+
+        <section class="dossier-section" id="documentsSection">
+          <h2 class="section-rule">Generated documents</h2>
+          <div class="doc-index" id="docIndex"></div>
+          <details id="docGenerator">
+            <summary class="dossier-back" style="cursor:pointer; display:inline-block; margin-top:18px;">Write something new</summary>
+            <div class="doc-maker" id="docMaker"></div>
+          </details>
+        </section>
+
+        <section class="dossier-section" id="fileSection">
+          <h2 class="section-rule">The file</h2>
           <label>Location</label>
-          <input type="text" id="location" />
+          <input type="text" id="d-location" />
           <label>Posting link</label>
-          <input type="text" id="link" />
+          <input type="text" id="d-link" />
           <label>Job post text</label>
-          <textarea id="jobPost" rows="6"></textarea>
+          <textarea id="d-jobPost" rows="6"></textarea>
           <label>Notes</label>
-          <textarea id="notes" rows="4" placeholder="Interviewer names, impressions, follow-ups..."></textarea>
+          <textarea id="d-notes" rows="4" placeholder="Interviewer names, impressions, follow-ups..."></textarea>
           <div class="row" style="margin-top:12px;">
             <button class="btn" id="saveDetails">Save</button>
             <span id="saveStatus" class="muted"></span>
           </div>
-        </div>
+        </section>
       </div>
 
-      <div>
-        <div class="card">
-          <div class="row between">
-            <h2>Application Vault</h2>
-            <div class="row" id="docButtons"></div>
-          </div>
-          <p class="muted">Specific documents and assets generated for this role.</p>
-          <div id="vaultGrid" class="vault-grid"></div>
-        </div>
+      <aside class="dossier-rail">
+        <section>
+          <h2 class="section-rule">Stage</h2>
+          <div id="stageBlock"></div>
+        </section>
 
-        <div class="card">
-          <h2>Tailored CV</h2>
-          <div id="cvStatus" class="muted">No tailored CV yet.</div>
-          <label>Role flavor</label>
-          <select id="flavor">
-            <option value="">General</option>
-            <option value="tech">Tech / Engineering / PM</option>
-            <option value="executive">Executive / C-suite</option>
-            <option value="academic">Academic</option>
-            <option value="creative">Creative / Design</option>
-            <option value="careerChange">Career change</option>
-          </select>
-          <div class="row" style="margin-top:12px;">
-            <button class="btn" id="tailorBtn">Tailor CV to this posting</button>
-          </div>
-          <div id="tailorResult"></div>
-        </div>
-      </div>
+        <section style="margin-top:34px;">
+          <h2 class="section-rule">The record</h2>
+          <ol class="record-list" id="activityRecord"></ol>
+          <button class="btn secondary small" id="addReminderBtn" style="margin-top:14px;">Add reminder</button>
+        </section>
+
+        <section class="danger-note">
+          <button type="button" class="cv-row-action danger" id="deleteAppBtn">Delete this application</button>
+        </section>
+      </aside>
     </div>
   </main>
 

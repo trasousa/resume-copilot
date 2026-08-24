@@ -1,4 +1,4 @@
-import { api, escapeHtml, renderNav, showError } from "./app.js";
+import { api, escapeHtml, renderNav, showError, runStagedTask, skeletonBars } from "./app.js";
 import { icon } from "./icons.js";
 import { renderResumeView } from "./resume-view.js";
 
@@ -44,12 +44,20 @@ function renderOnboarding() {
 }
 
 async function parseAndPreview(cvId) {
-  const status = document.getElementById("uploadStatus");
-  if (status) status.innerHTML = `<span class="spinner"></span> reading your resume…`;
-  document.getElementById("stepBody").innerHTML = `<p class="muted"><span class="spinner"></span> Parsing your resume…</p>`;
+  document.getElementById("stepBody").innerHTML = `<p class="muted" id="parseStageStatus">Reading your resume…</p>${skeletonBars()}`;
   let parsedJson = null;
   try {
-    const result = await api(`/cvs/${cvId}/parse`, { method: "POST" });
+    const result = await runStagedTask(
+      () => api(`/cvs/${cvId}/parse`, { method: "POST" }),
+      {
+        statusEl: document.getElementById("parseStageStatus"),
+        stages: [
+          [0, "Reading your resume…"],
+          [4000, "Extracting your experience…"],
+          [15000, "Still working — long resumes take up to a minute."],
+        ],
+      }
+    );
     parsedJson = result.parsedJson;
   } catch {
     // Parsing is a nice-to-have preview, not a hard requirement -- fall
@@ -171,7 +179,7 @@ function renderStep3() {
   document.getElementById("stepSubtitle").textContent = "Head to Applications to search for roles and track them.";
   document.getElementById("stepBody").innerHTML = `
     <div class="row" style="justify-content:center; gap: 12px; padding: 20px 0;">
-      <a class="btn" href="index.html">${icon("list")} Go to Applications</a>
+      <a class="btn" href="index.html">${icon("list")} Go to the Desk</a>
     </div>`;
   document.getElementById("skipBtn").style.display = "none";
   document.getElementById("backBtn").style.display = "none";
@@ -189,7 +197,7 @@ async function renderSettled(cvs) {
       <div class="card">
         <h2>Master resume</h2>
         <p class="muted">${escapeHtml(master.label)} ${master.isMaster ? "(master)" : ""}</p>
-        <a class="btn secondary small" href="cv-store.html">Manage in CV Store</a>
+        <a class="btn secondary small" href="studio.html">Manage in Studio</a>
       </div>
       <div class="card">
         <h2>Job search preferences</h2>

@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import * as db from "../lib/db.js";
 import { STAGES } from "../lib/db.js";
 import { buildSkillPrompt, SKILL_ROUTES, FLAVOR_SKILLS } from "../lib/skills.js";
 import { runTask } from "../lib/llm.js";
@@ -19,28 +18,28 @@ function parseMatchScore(analysisText) {
   return n >= 0 && n <= 100 ? n : null;
 }
 
-router.get("/", async (c) => c.json(await db.listApplications(c.env.DB)));
+router.get("/", async (c) => c.json(await c.var.store.listApplications()));
 
-router.get("/stats", async (c) => c.json(await db.getApplicationStats(c.env.DB)));
+router.get("/stats", async (c) => c.json(await c.var.store.getApplicationStats()));
 
-router.get("/activity-heatmap", async (c) => c.json(await db.getActivityHeatmap(c.env.DB)));
+router.get("/activity-heatmap", async (c) => c.json(await c.var.store.getActivityHeatmap()));
 
 router.get("/:id/activity", async (c) => {
-  const app = await db.getApplication(c.env.DB, c.req.param("id"));
+  const app = await c.var.store.getApplication(c.req.param("id"));
   if (!app) return c.json({ error: "Application not found" }, 404);
-  return c.json(await db.listActivity(c.env.DB, app.id));
+  return c.json(await c.var.store.listActivity(app.id));
 });
 
 router.post("/:id/activity", async (c) => {
   const id = c.req.param("id");
-  const app = await db.getApplication(c.env.DB, id);
+  const app = await c.var.store.getApplication(id);
   if (!app) return c.json({ error: "Application not found" }, 404);
 
   const { title, detail, occurredAt } = await c.req.json();
   if (!title?.trim()) return c.json({ error: "title is required" }, 400);
 
   const now = new Date().toISOString();
-  const ev = await db.addActivity(c.env.DB, {
+  const ev = await c.var.store.addActivity({
     id: crypto.randomUUID(),
     applicationId: id,
     type: "reminder",
@@ -53,9 +52,9 @@ router.post("/:id/activity", async (c) => {
 });
 
 router.get("/:id", async (c) => {
-  const app = await db.getApplication(c.env.DB, c.req.param("id"));
+  const app = await c.var.store.getApplication(c.req.param("id"));
   if (!app) return c.json({ error: "Application not found" }, 404);
-  return c.json({ ...app, documents: await db.listDocuments(c.env.DB, app.id) });
+  return c.json({ ...app, documents: await c.var.store.listDocuments(app.id) });
 });
 
 router.post("/", async (c) => {
@@ -63,8 +62,16 @@ router.post("/", async (c) => {
   if (!b.company || !b.role)
     return c.json({ error: "company and role are required" }, 400);
 
+  // Agent SQLite enforces the cv_id foreign key that D1 quietly ignored
+  // (verified: the same insert succeeds on D1 and raises SQLITE_CONSTRAINT
+  // in a Durable Object). A client sending a stale or foreign cvId used to
+  // store a dangling reference; without this check it would now be an
+  // opaque 500 instead of a clear rejection.
+  if (b.cvId && !(await c.var.store.getCv(b.cvId)))
+    return c.json({ error: "That CV no longer exists." }, 400);
+
   const now = new Date().toISOString();
-  const app = await db.createApplication(c.env.DB, {
+  const app = await c.var.store.createApplication({
     id: crypto.randomUUID(),
     company: b.company,
     role: b.role,
@@ -81,7 +88,7 @@ router.post("/", async (c) => {
     createdAt: now,
     updatedAt: now,
   });
-  await db.addActivity(c.env.DB, {
+  await c.var.store.addActivity({
     id: crypto.randomUUID(),
     applicationId: app.id,
     type: "created",
@@ -95,7 +102,7 @@ router.post("/", async (c) => {
 
 router.patch("/:id", async (c) => {
   const id = c.req.param("id");
-  const app = await db.getApplication(c.env.DB, id);
+  const app = await c.var.store.getApplication(id);
   if (!app) return c.json({ error: "Application not found" }, 404);
 
   const b = await c.req.json();
@@ -109,10 +116,10 @@ router.patch("/:id", async (c) => {
     if (b[k] !== undefined) patch[k] = b[k];
   if (b.stage !== undefined && b.stage !== app.stage) patch.stage = b.stage;
 
-  const updated = await db.updateApplication(c.env.DB, id, patch);
+  const updated = await c.var.store.updateApplication(id, patch);
   if (patch.stage !== undefined) {
     const now2 = new Date().toISOString();
-    await db.addActivity(c.env.DB, {
+    await c.var.store.addActivity({
       id: crypto.randomUUID(),
       applicationId: id,
       type: "stage_change",
@@ -126,7 +133,7 @@ router.patch("/:id", async (c) => {
 });
 
 router.delete("/:id", async (c) => {
-  await db.deleteApplication(c.env.DB, c.req.param("id"));
+  await c.var.store.deleteApplication(c.req.param("id"));
   return c.body(null, 204);
 });
 
@@ -134,12 +141,12 @@ router.post("/:id/tailor", async (c) => {
   const id = c.req.param("id");
   const { flavor, cvId } = await c.req.json().catch(() => ({}));
 
-  const app = await db.getApplication(c.env.DB, id);
+  const app = await c.var.store.getApplication(id);
   if (!app) return c.json({ error: "Application not found" }, 404);
   if (!app.jobPostText?.trim())
     return c.json({ error: "This application has no job post text saved yet." }, 400);
 
-  const baseCv = await db.resolveCv(c.env.DB, cvId || app.cvId);
+  const baseCv = await c.var.store.resolveCv(cvId || app.cvId);
   if (!baseCv)
     return c.json({ error: "No CV found. Upload or set a master CV first." }, 400);
 
@@ -166,13 +173,13 @@ router.post("/:id/tailor", async (c) => {
     `from the Tailored CV text) that most directly reflect the job posting's ` +
     `requirements -- these get highlighted in the UI.`;
 
-  const { text } = await runTask({ env: c.env, stable, prompt });
+  const { text } = await runTask({ env: c.env, store: c.var.store, stable, prompt });
   const tailoredText = text.match(/```CV\n([\s\S]*?)\n```/)?.[1].trim() || null;
   const matchScore = parseMatchScore(text);
 
   let newCv = null;
   if (tailoredText) {
-    newCv = await db.createCv(c.env.DB, {
+    newCv = await c.var.store.createCv({
       id: crypto.randomUUID(),
       label: `${app.company} - ${app.role}`,
       content: tailoredText,
@@ -181,15 +188,15 @@ router.post("/:id/tailor", async (c) => {
       createdAt: new Date().toISOString(),
     });
     // Scoped UPDATE -- can't clobber edits made while the model was running.
-    await db.updateApplication(c.env.DB, id, { cvId: newCv.id, matchScore });
+    await c.var.store.updateApplication(id, { cvId: newCv.id, matchScore });
   }
 
   if (!newCv && matchScore != null) {
     // No structured CV came back, but a score did -- still worth recording.
-    await db.updateApplication(c.env.DB, id, { matchScore });
+    await c.var.store.updateApplication(id, { matchScore });
   }
   const tailoredAt = new Date().toISOString();
-  await db.addActivity(c.env.DB, {
+  await c.var.store.addActivity({
     id: crypto.randomUUID(),
     applicationId: id,
     type: "tailored",
@@ -210,11 +217,11 @@ router.post("/:id/tailor", async (c) => {
 });
 
 router.get("/:id/tailored/download", async (c) => {
-  const app = await db.getApplication(c.env.DB, c.req.param("id"));
+  const app = await c.var.store.getApplication(c.req.param("id"));
   if (!app?.cvId)
     return c.json({ error: "No tailored CV for this application yet" }, 404);
 
-  const cv = await db.getCv(c.env.DB, app.cvId);
+  const cv = await c.var.store.getCv(app.cvId);
   if (!cv) return c.json({ error: "CV not found" }, 404);
 
   const buffer = await cvTextToDocxBuffer(cv.content);

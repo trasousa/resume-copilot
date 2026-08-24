@@ -2,59 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231D4E4B'/%3E%3Ctext x='16' y='23' font-family='Arial,sans-serif' font-size='19' font-weight='700' fill='white' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E" />
-  <title>CV Store · Resume Copilot</title>
-  <link rel="stylesheet" href="css/styles.css" />
+  <!-- CV Store merged into the Studio workspace. Kept as a redirect so old
+       links, bookmarks, and any stray in-app hrefs still land somewhere. -->
+  <meta http-equiv="refresh" content="0; url=studio.html" />
+  <title>Moved to Studio · Resume Copilot</title>
+  <link rel="canonical" href="studio.html" />
 </head>
 <body>
-  <div id="topnav"></div>
-  <main>
-    <h1>CV Store</h1>
-    <p class="subtitle">Upload a CV, mark a master, and improve it interactively — no job post needed.</p>
-
-    <div id="onboardingBanner"></div>
-
-    <div class="grid cols-2">
-      <div class="card">
-        <h2>Upload a CV</h2>
-        <label>File (.docx, .txt, .md)</label>
-        <input type="file" id="cvFile" accept=".docx,.txt,.md" />
-        <label>Label</label>
-        <input type="text" id="uploadLabel" placeholder="e.g. Master CV, or 'CV - 2024 backup'" />
-        <div class="row" style="margin-top:12px;">
-          <button class="btn" id="uploadBtn">Upload</button>
-        </div>
-      </div>
-      <div class="card">
-        <h2>Or paste CV text</h2>
-        <label>Label</label>
-        <input type="text" id="pasteLabel" />
-        <label>CV content</label>
-        <textarea id="pasteContent" rows="5"></textarea>
-        <div class="row" style="margin-top:12px;">
-          <button class="btn" id="pasteBtn">Save</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Your CVs</h2>
-      <div id="cvList"></div>
-    </div>
-
-    <div id="improveCard" style="display:none;">
-      <div class="row between" style="margin: 24px 0 10px;">
-        <div>
-          <h2 id="improveTitle" style="margin-bottom: 2px;">Improve CV</h2>
-          <p class="muted" style="margin: 0;">Edit the document directly, or ask the assistant on the right — say "just improve it" and it'll do its best. A proposed rewrite shows here for you to accept or discard.</p>
-        </div>
-        <button class="btn secondary small" id="closeImproveBtn">Close</button>
-      </div>
-      <div id="cvDocMount"></div>
-    </div>
-  </main>
-
-  <script type="module" src="js/cv-store.js"></script>
+  <p>The CV Store is now part of the <a href="studio.html">Studio</a>.</p>
+  <script>location.replace("studio.html" + location.search);</script>
 </body>
 </html>

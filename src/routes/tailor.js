@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import * as db from "../lib/db.js";
 import { buildSkillPrompt, SKILL_ROUTES, FLAVOR_SKILLS } from "../lib/skills.js";
 import { runTask } from "../lib/llm.js";
 
@@ -13,7 +12,7 @@ router.post("/quick", async (c) => {
   if (!jobPostText?.trim())
     return c.json({ error: "jobPostText is required" }, 400);
 
-  const baseCv = await db.resolveCv(c.env.DB, cvId);
+  const baseCv = await c.var.store.resolveCv(cvId);
   if (!baseCv)
     return c.json({ error: "No CV found. Upload or set a master CV first." }, 400);
 
@@ -40,7 +39,7 @@ router.post("/quick", async (c) => {
     `from the Tailored CV text) that most directly reflect the job posting's ` +
     `requirements -- these get highlighted in the UI.`;
 
-  const { text } = await runTask({ env: c.env, stable, prompt });
+  const { text } = await runTask({ env: c.env, store: c.var.store, stable, prompt });
 
   return c.json({
     analysis: text,
@@ -57,9 +56,9 @@ router.post("/quick/save", async (c) => {
   const { baseCvId, content, label } = await c.req.json();
   if (!content) return c.json({ error: "content is required" }, 400);
 
-  const parent = baseCvId ? await db.getCv(c.env.DB, baseCvId) : null;
+  const parent = baseCvId ? await c.var.store.getCv(baseCvId) : null;
 
-  const cv = await db.createCv(c.env.DB, {
+  const cv = await c.var.store.createCv({
     id: crypto.randomUUID(),
     label: label || "Tailored CV",
     content,

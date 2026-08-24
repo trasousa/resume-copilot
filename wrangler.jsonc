@@ -10,6 +10,14 @@
 
   "observability": { "enabled": true },
 
+  // Access can only front the custom domain below, never *.workers.dev --
+  // and static assets are served before the Worker runs, so with the
+  // default workers.dev subdomain enabled the entire frontend was publicly
+  // fetchable there, un-Access'd. API routes still failed closed (no valid
+  // JWT can exist for workers.dev), but the app's structure shouldn't be
+  // public either. Disabling the subdomain closes the whole surface.
+  "workers_dev": false,
+
   // Static frontend. Served by the same Worker as the API, so there is no
   // second deploy and no cross-origin config.
   "assets": {
@@ -78,7 +86,17 @@
     "WORKERS_AI_MODEL": "@cf/zai-org/glm-4.7-flash",
     "WORKERS_AI_CHAT_MODEL": "@cf/zai-org/glm-4.7-flash",
     "CF_ACCESS_TEAM_DOMAIN": "trasousa.cloudflareaccess.com",
-    "CF_ACCESS_AUD": "a55647e511b1d3a8932fb682a628af9901b8eccf2befb5f02aee35779d437c78" // gitleaks:allow -- not a bearer credential, see comment above
+    "CF_ACCESS_AUD": "a55647e511b1d3a8932fb682a628af9901b8eccf2befb5f02aee35779d437c78", // gitleaks:allow -- not a bearer credential, see comment above
+    // Access `sub` of the account whose pre-multi-tenant D1 rows the legacy
+    // import may adopt (POST /api/admin/import-legacy). An identifier, not a
+    // credential -- knowing it grants nothing, because the request still has
+    // to arrive carrying an Access JWT with that same sub. Read your own
+    // from GET /api/auth/me while signed in, paste it here, deploy, import
+    // once, and it can stay set (the import is idempotent). Empty means the
+    // route is off: it fails closed with 403 rather than defaulting to
+    // "whoever asks first", which would let any member of the Access policy
+    // permanently take the owner's data.
+    "LEGACY_OWNER_SUB": ""
   },
 
   // Required, not cosmetic, now that Access is back: Access can only attach

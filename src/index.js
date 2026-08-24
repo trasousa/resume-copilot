@@ -9,6 +9,7 @@ import { Hono } from "hono";
 
 import { listSkills } from "./lib/skills.js";
 import { requireAuth, currentUser, resolveIdentity } from "./lib/auth.js";
+import { withStore } from "./lib/store.js";
 import { ResumeAgent } from "./agents/resume-agent.js";
 import { getAgentByName } from "agents";
 import { subscribe } from "agents/observability";
@@ -23,8 +24,21 @@ import profileRouter from "./routes/profile.js";
 import outreachRouter from "./routes/outreach.js";
 import templatesRouter from "./routes/templates.js";
 import accountRouter from "./routes/account.js";
+import usageRouter from "./routes/usage.js";
+import adminRouter from "./routes/admin.js";
 
 const app = new Hono();
+
+// Errors thrown with a deliberate 4xx/5xx `status` carry messages written
+// for the user (cap reached, bad URL, model truncation) and pass through.
+// Anything else -- D1 failures, binding errors, plain bugs -- previously
+// leaked its raw message to the client; those now log server-side and
+// return a generic 500.
+const isDeliberate = (err) =>
+  Number.isInteger(err?.status) && err.status >= 400 && err.status <= 599;
+const publicErrorMessage = (err) =>
+  isDeliberate(err) ? err.message || "Request failed." : "Internal server error";
+const publicErrorStatus = (err) => (isDeliberate(err) ? err.status : 500);
 
 // No CORS middleware, deliberately. The frontend is served from this same
 // Worker, so it never needs one -- and the Express version's `cors()` sent
@@ -38,9 +52,21 @@ const app = new Hono();
 // Worker) and your Zero Trust policy.
 app.use("/api/*", requireAuth());
 
-app.get("/api/auth/me", async (c) =>
-  c.json({ email: (await currentUser(c))?.email || null })
-);
+// Every /api/* route reads and writes the caller's own agent, never a
+// shared database -- see src/lib/store.js. Mounted immediately after
+// requireAuth() because it depends on the verified identity that
+// middleware sets.
+app.use("/api/*", withStore());
+
+// `sub` is echoed alongside `email` so the owner can read their own stable
+// identifier out of the running app and paste it into wrangler.jsonc's
+// LEGACY_OWNER_SUB -- there is otherwise no way to see it (it comes from the
+// Access JWT, which the browser never shows you). It's an identifier, not a
+// credential, and it's only ever the caller's own.
+app.get("/api/auth/me", async (c) => {
+  const user = await currentUser(c);
+  return c.json({ email: user?.email || null, sub: user?.sub || null });
+});
 
 // --- api --------------------------------------------------------------------
 
@@ -56,6 +82,9 @@ app.route("/api/profile", profileRouter);
 app.route("/api/outreach", outreachRouter);
 app.route("/api/templates", templatesRouter);
 app.route("/api/account", accountRouter);
+app.route("/api/usage", usageRouter);
+
+app.route("/api/admin", adminRouter);
 
 app.get("/api/skills", (c) => c.json(listSkills()));
 
@@ -76,10 +105,7 @@ app.notFound((c) =>
 
 app.onError((err, c) => {
   console.error(err);
-  return c.json(
-    { error: err.message || "Internal server error" },
-    err.status || 500
-  );
+  return c.json({ error: publicErrorMessage(err) }, publicErrorStatus(err));
 });
 
 export { ResumeAgent };
@@ -122,8 +148,8 @@ async function handleAgentRequest(request, env) {
   } catch (err) {
     console.error(err);
     return Response.json(
-      { error: err.message || "Internal server error" },
-      { status: err.status || 500 }
+      { error: publicErrorMessage(err) },
+      { status: publicErrorStatus(err) }
     );
   }
 }

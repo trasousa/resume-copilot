@@ -7,7 +7,6 @@
 // application for it.
 
 import { Hono } from "hono";
-import * as db from "../lib/db.js";
 import { buildSkillPrompt, SKILL_ROUTES } from "../lib/skills.js";
 import { runTask } from "../lib/llm.js";
 
@@ -33,7 +32,7 @@ router.post("/generate", async (c) => {
   if (!targetRoleCompany?.trim())
     return c.json({ error: "targetRoleCompany is required" }, 400);
 
-  const cv = await db.resolveCv(c.env.DB, cvId);
+  const cv = await c.var.store.resolveCv(cvId);
   if (!cv)
     return c.json({ error: "No CV available. Upload or set a master CV first." }, 400);
 
@@ -54,7 +53,7 @@ router.post("/generate", async (c) => {
     `Candidate's CV:\n"""\n${cv.content}\n"""\n` +
     (TONE_INSTRUCTIONS[tone] ? `\n${TONE_INSTRUCTIONS[tone]}` : "");
 
-  const { text } = await runTask({ env: c.env, stable, prompt, maxTokens: 8000 });
+  const { text } = await runTask({ env: c.env, store: c.var.store, stable, prompt, maxTokens: 8000 });
   return c.json({ content: text });
 });
 

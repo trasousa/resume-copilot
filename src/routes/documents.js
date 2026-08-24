@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import * as db from "../lib/db.js";
 import { buildSkillPrompt, SKILL_ROUTES } from "../lib/skills.js";
 import { runTask } from "../lib/llm.js";
 
@@ -69,7 +68,7 @@ const TONE_INSTRUCTIONS = {
 export const DOC_TYPE_KEYS = Object.keys(DOC_TYPES);
 
 router.get("/", async (c) =>
-  c.json(await db.listDocuments(c.env.DB, c.req.param("id")))
+  c.json(await c.var.store.listDocuments(c.req.param("id")))
 );
 
 router.post("/", async (c) => {
@@ -79,10 +78,10 @@ router.post("/", async (c) => {
   const docType = DOC_TYPES[type];
   if (!docType) return c.json({ error: `Unknown document type "${type}"` }, 400);
 
-  const app = await db.getApplication(c.env.DB, applicationId);
+  const app = await c.var.store.getApplication(applicationId);
   if (!app) return c.json({ error: "Application not found" }, 404);
 
-  const cv = await db.resolveCv(c.env.DB, app.cvId);
+  const cv = await c.var.store.resolveCv(app.cvId);
   if (!cv)
     return c.json({ error: "No CV available. Upload or set a master CV first." }, 400);
 
@@ -101,9 +100,9 @@ router.post("/", async (c) => {
     (extraNotes ? `\nAdditional context from the candidate: ${extraNotes}` : "") +
     (TONE_INSTRUCTIONS[tone] ? `\n${TONE_INSTRUCTIONS[tone]}` : "");
 
-  const { text } = await runTask({ env: c.env, stable, prompt, maxTokens: 8000 });
+  const { text } = await runTask({ env: c.env, store: c.var.store, stable, prompt, maxTokens: 8000 });
 
-  const doc = await db.createDocument(c.env.DB, {
+  const doc = await c.var.store.createDocument({
     id: crypto.randomUUID(),
     applicationId,
     type,
@@ -114,7 +113,7 @@ router.post("/", async (c) => {
 });
 
 router.delete("/:docId", async (c) => {
-  await db.deleteDocument(c.env.DB, c.req.param("docId"));
+  await c.var.store.deleteDocument(c.req.param("docId"));
   return c.body(null, 204);
 });
 

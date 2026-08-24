@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231D4E4B'/%3E%3Ctext x='16' y='23' font-family='Arial,sans-serif' font-size='19' font-weight='700' fill='white' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E" />
+  <title>Pipeline · Resume Copilot</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="topnav"></div>
+  <main>
+    <header class="workspace-masthead">
+      <p class="workspace-kicker">Pipeline</p>
+      <h1 class="workspace-statement" id="pipelineStatement">Loading your applications…</h1>
+    </header>
+
+    <div id="staleNotice"></div>
+
+    <div id="board" class="board"></div>
+
+    <details class="card" id="comparePanel">
+      <summary><h2 style="display:inline;">Compare</h2></summary>
+      <div class="table-wrap">
+        <table id="compareTable">
+          <thead>
+            <tr>
+              <th data-sort="company">Company / Role</th>
+              <th data-sort="stage">Stage</th>
+              <th data-sort="match">Match</th>
+              <th data-sort="comp">Comp</th>
+              <th data-sort="location">Location</th>
+            </tr>
+          </thead>
+          <tbody id="compareTableBody"></tbody>
+        </table>
+      </div>
+    </details>
+  </main>
+
+  <dialog id="newAppDialog">
+    <div class="card">
+      <h2>New application</h2>
+      <div id="newAppCvHint"></div>
+      <label>Company</label>
+      <input type="text" id="f-company" />
+      <label>Role</label>
+      <input type="text" id="f-role" />
+      <label>Location</label>
+      <input type="text" id="f-location" placeholder="Berlin, Remote, ..." />
+      <label>Posting link (optional)</label>
+      <div class="row">
+        <input type="text" id="f-link" style="flex:1;" />
+        <button type="button" class="btn secondary small" id="f-fetch">Fetch job post</button>
+      </div>
+      <span id="f-fetch-status" class="muted"></span>
+      <label>Job post text (paste it here, or fetch it from the link above, so the right skills can tailor your CV, cover letter, etc. to it)</label>
+      <textarea id="f-jobpost" rows="6"></textarea>
+      <label>Starting stage</label>
+      <select id="f-stage">
+        <option value="saved">Saved</option>
+        <option value="applied">Applied</option>
+      </select>
+      <div class="row" style="margin-top:16px; justify-content:flex-end;">
+        <button class="btn secondary" id="cancelNewApp">Cancel</button>
+        <button class="btn" id="saveNewApp">Create</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="js/pipeline.js"></script>
+</body>
+</html>

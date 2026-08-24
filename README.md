@@ -75,13 +75,14 @@ This app uses [Cloudflare Workers AI](https://developers.cloudflare.com/workers-
 
 ## Job search
 
-Job Search combines three free sources, run concurrently:
+Job Search combines four free sources, run concurrently:
 
 - **[Arbeitnow](https://www.arbeitnow.com)** (`src/lib/arbeitnow.js`) -- free, no key. Germany/UK-heavy on-site + some remote postings, aggregated from Greenhouse/SmartRecruiters/etc, updated hourly. No server-side search, so city/region/country/remote filtering happens in-app after fetching.
 - **[Himalayas](https://himalayas.app)** (`src/lib/himalayas.js`) -- free, no key. Global remote-only postings with real keyword+country search and salary data when disclosed.
-- **[OpenWebNinja JSearch](https://www.openwebninja.com)** (`src/lib/jsearch.js`) -- optional, needs `OPENWEBNINJA_API_KEY`. Aggregates LinkedIn, Indeed, Glassdoor, ZipRecruiter, and other public boards via Google for Jobs. **Free tier is 200 requests/month** -- each user-initiated search costs exactly one JSearch request, so budget accordingly. Job Search works fine without this key set; you just lose that source's results.
+- **[OpenWebNinja JSearch](https://www.openwebninja.com)** (`src/lib/jsearch.js`) -- optional, needs `OPENWEBNINJA_API_KEY` (`npx wrangler secret put OPENWEBNINJA_API_KEY`). Aggregates LinkedIn, Indeed, Glassdoor, ZipRecruiter, and other public boards via Google for Jobs. **Free tier is 200 requests/month** -- each user-initiated search costs exactly one JSearch request, so budget accordingly. Job Search works fine without this key set; you just lose that source's results.
+- **[Tavily](https://tavily.com)** (`src/lib/tavily.js`) -- optional, needs `TAVILY_API_KEY` (`npx wrangler secret put TAVILY_API_KEY`). General web search scoped to LinkedIn/Indeed/Glassdoor/Lever/Greenhouse/Workable via `include_domains`, parsed best-effort since Tavily returns generic web results rather than structured postings. Also optional -- Job Search works fine without this key set.
 
-Results from all three are deduplicated (`src/lib/jobdedup.js`, matched by normalized company + title + location/remote) before Workers AI ranks the merged list against your CV. Search progress streams to the page as each source resolves, rather than waiting for all three before showing anything.
+Results from all four are deduplicated (`src/lib/jobdedup.js`, matched by normalized company + title + location/remote) before Workers AI ranks the merged list against your CV. Search progress streams to the page as each source resolves, rather than waiting for all four before showing anything.
 
 ## Deploy
 
@@ -91,21 +92,65 @@ npm run deploy
 
 That's the whole deploy -- one Worker, static assets and API together, no separate Pages project. Prints a `*.workers.dev` URL you can use immediately.
 
-**Upgrading an existing deployment** (a remote D1 database created before the `match_score` column was added to `applications`): `npm run db:init`'s `CREATE TABLE IF NOT EXISTS` is a no-op against a table that already exists, so it won't backfill the new column on its own. Run this once against remote before `npm run db:init`:
+### Upgrading a deployment that predates per-user data
+
+Everything below is a one-time sequence for a deployment whose D1 database
+still holds the original single-tenant rows. On a brand-new deployment,
+skip it entirely: `npm run db:init` creates the shared tables, and each
+user's own tables are created automatically inside their agent on first
+use.
+
+The per-user tables are no longer in `schema.sql`, so there is no
+`ALTER TABLE` dance any more -- schema changes are version entries in
+`src/agents/schema.js`. But the rows already sitting in D1 need adopting,
+because nothing in them records who they belong to.
+
+1. **Add the column the job-search target-role field needs**, since the
+   import copies it if present:
+
+   ```bash
+   npx wrangler d1 execute resume-copilot --remote --command="ALTER TABLE profile ADD COLUMN target_role TEXT NOT NULL DEFAULT '';"
+   ```
+
+   (Older databases may likewise predate `applications.match_score` and
+   `cvs.parsed_json`; add those the same way if `db:init` was never re-run
+   after they were introduced. The import tolerates their absence -- it
+   simply won't carry over a column that isn't there.)
+
+2. **Apply the shared schema and deploy:**
+
+   ```bash
+   npm run db:init
+   npm run deploy
+   ```
+
+3. **Find your own Access `sub`** -- sign in to the deployed app and open
+   `/api/auth/me`. It returns `{ email, sub }`.
+
+4. **Name yourself the owner** of the legacy rows: put that `sub` in
+   `wrangler.jsonc`'s `LEGACY_OWNER_SUB` var and `npm run deploy` again.
+   While it's empty the import route is off and answers 403 -- deliberately,
+   so nobody else behind your Access policy can claim your data first.
+
+5. **Dry-run the import, then run it**, signed in as that same account:
+
+   ```bash
+   curl -X POST https://<your-domain>/api/admin/import-legacy \
+     -H 'Content-Type: application/json' -d '{"dryRun":true}'
+   ```
+
+   Check the counts, then repeat without `dryRun`. The response reports
+   `imported` (rows actually written), `found` (rows read from D1),
+   `dropped` (rows whose parent no longer exists) and `missing` (which
+   should always be empty). Re-running is safe: it answers
+   `{"skipped":"already-imported"}`.
+
+The import never deletes anything from D1. Those tables stay as a
+read-only archive; once you're confident, you can drop them by hand:
 
 ```bash
-npx wrangler d1 execute resume-copilot --remote --command="ALTER TABLE applications ADD COLUMN match_score INTEGER;"
+npx wrangler d1 execute resume-copilot --remote --command="DROP TABLE chat_messages; DROP TABLE documents; DROP TABLE activity_events; DROP TABLE templates; DROP TABLE applications; DROP TABLE cvs; DROP TABLE profile; DROP TABLE token_usage;"
 ```
-
-Skip this on a brand-new database -- `db:init`/`db:init:local` already creates `applications` with `match_score` included.
-
-**Upgrading an existing deployment** (a remote D1 database created before the `parsed_json` column was added to `cvs`): same story -- `CREATE TABLE IF NOT EXISTS` won't backfill the new column on a table that already exists. Run this once against remote before `npm run db:init`:
-
-```bash
-npx wrangler d1 execute resume-copilot --remote --command="ALTER TABLE cvs ADD COLUMN parsed_json TEXT;"
-```
-
-Skip this on a brand-new database -- `db:init`/`db:init:local` already creates `cvs` with `parsed_json` included.
 
 ## Custom domain
 
@@ -127,7 +172,7 @@ The `*.workers.dev` URL keeps existing alongside the custom domain, but see "Sig
 
 Cloudflare Access protects a hostname by intercepting traffic to it at Cloudflare's edge, before it ever reaches the Worker -- so it needs the real Cloudflare zone from "Custom domain" above to attach to. It cannot front `*.workers.dev`, which is a domain Cloudflare shares across every account, not one you control.
 
-Single-tenant, same as this app has been throughout: whoever your Access policy lets through shares one CV store, tracker, and everything else. There's no per-user data. If you want that, it's a bigger change than this app makes -- ask if you want it built.
+Everyone your Access policy lets through gets their own private workspace. Each authenticated user is routed to their own `ResumeAgent` Durable Object, keyed by the Access JWT's stable `sub` claim, and that object's SQLite holds all of their data -- so two people behind the same policy cannot see each other's CVs, applications, or chats, and deleting one account leaves the other untouched. The daily AI token budget is counted per user too.
 
 **Set up the Access application** (one-time, in the [Zero Trust dashboard](https://one.dash.cloudflare.com/)):
 
@@ -161,11 +206,12 @@ To sign out, the nav's **Log out** button sends the browser to `/cdn-cgi/access/
 
 - **PDF upload isn't supported** -- only `.docx`, `.txt`, `.md` (10 MB cap). Convert PDFs first.
 - **CV → .docx export** uses a lightweight markdown-ish renderer (`src/lib/docxOut.js`), not a template engine.
-- **Single-tenant.** One allow-list, one shared dataset, no per-user accounts.
-- **Job search depends on Arbeitnow's coverage** and can come up thin for a niche role/location combo -- there's no fallback source.
+- **Access is the only account system.** Users exist because your Access policy admits them; there's no sign-up, profile, or role model of this app's own. Data is per-user, but administration isn't.
+- **Job-search coverage varies by role and location.** Four sources run in parallel (two free, two optional keys), but a niche combination can still come up thin.
 
 ## Next steps
 
 - Turn the five one-shot routes into a single tool-using agent (tools over the CV store and tracker, skills loaded on demand rather than pasted into every prompt).
 - Tests around the fence parsers (` ```CV `, ` ```JOBS `) and the stage machine.
-- Real multi-user accounts with per-user data, if this ever needs to serve more than one person's CVs.
+- Move generation into the agent as typed `@callable()` methods, and put the frontend on the Agents client SDK (sub-projects 3-6 of `docs/superpowers/specs/2026-08-16-resume-agent-core-design.md`).
+- Scheduled agent tasks: fire the reminders `activity_events` already stores, and run a nightly search against the saved target role.

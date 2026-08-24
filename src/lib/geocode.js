@@ -49,13 +49,25 @@ async function geocodeOne(db, query) {
 /** Geocodes a list of location strings, deduplicated, cache-first,
  * respecting Nominatim's 1 req/sec cap for cache misses only (cache hits
  * are unlimited -- they never touch the live API). Returns a Map keyed
- * by normalizeQuery(location) -> {lat, lng} or null. */
-export async function geocodeLocations(db, locations) {
+ * by normalizeQuery(location) -> {lat, lng} or null.
+ *
+ * `maxUncached` bounds how many live API lookups one call may make: the
+ * mandatory 1s pause per miss means N misses cost ~N seconds, so an
+ * uncapped call over a fresh result set can stall its caller for half a
+ * minute. Locations past the cap resolve to null this time (no cache
+ * write, so a later call retries them). */
+export async function geocodeLocations(db, locations, { maxUncached = Infinity } = {}) {
   const unique = [...new Set(locations.map(normalizeQuery).filter(Boolean))];
   const results = new Map();
+  let uncachedUsed = 0;
 
   for (const query of unique) {
     const wasCached = await db.prepare("SELECT 1 FROM geocode_cache WHERE query = ?").bind(query).first();
+    if (!wasCached && uncachedUsed >= maxUncached) {
+      results.set(query, null);
+      continue;
+    }
+    if (!wasCached) uncachedUsed++;
     results.set(query, await geocodeOne(db, query));
     if (!wasCached) {
       // Only pause after a real API call -- cache hits should stay fast,
