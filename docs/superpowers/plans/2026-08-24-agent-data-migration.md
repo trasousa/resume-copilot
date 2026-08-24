@@ -228,6 +228,12 @@ clients, `workersai.js`, the entire `public/` frontend. No API shape changes.
 
 ### D7 — Foreign keys behave differently in DO SQLite than in D1
 
+**CONFIRMED empirically during PR1 (2026-08-24)**: inserting an application
+with a nonexistent `cv_id` into DO SQLite fails with `FOREIGN KEY constraint
+failed: SQLITE_CONSTRAINT`, where the same insert succeeds against D1. The
+`POST /api/applications` existence check below is therefore **required**, not
+precautionary.
+
 D1 does not enforce FK constraints by default; DO SQLite does. Same DDL,
 different runtime behavior:
 - `DELETE FROM cvs` now cascades `chat_messages` and nulls
