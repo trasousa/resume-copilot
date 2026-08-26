@@ -5,14 +5,17 @@
 // (each source assigns its own URL to the same real job, so URL matching
 // alone isn't enough -- dedup instead on normalized company+title+location).
 //
-// Source-trust order when two jobs collide: jsearch > himalayas >
-// arbeitnow. JSearch and Himalayas return more structured/complete data;
-// Arbeitnow's freeform location strings are the least reliable to match
-// on, so it loses ties. The kept record is backfilled with any field
-// (currently just compEstimate) that a lower-trust duplicate has and it
-// doesn't, rather than discarding that data.
-
-const SOURCE_RANK = { jsearch: 0, himalayas: 1, arbeitnow: 2 };
+// Source-trust order when two jobs collide, best first. freehire leads
+// because it is the only source carrying the posting's body text, which is
+// what ranking reads to judge fit -- losing that copy of a job would throw
+// the description away. Then the structured APIs; Arbeitnow's freeform
+// location strings are unreliable to match on, and Tavily is last because
+// its company names are parsed out of URL slugs ("Remotecom") rather than
+// reported. An unlisted source sorts last rather than crashing.
+//
+// The kept record is backfilled from the loser with any field it lacks, so
+// a lower-trust duplicate's salary or description still survives the merge.
+const SOURCE_RANK = { freehire: 0, jsearch: 1, himalayas: 2, linkedin: 3, arbeitnow: 4, tavily: 5 };
 const LEGAL_SUFFIXES = /\b(inc|llc|ltd|gmbh|corp|co)\b\.?/gi;
 
 function normalizeCompany(company) {
@@ -61,6 +64,8 @@ export function dedupeJobs(jobs) {
     byKey.set(key, {
       ...winner,
       compEstimate: winner.compEstimate || loser.compEstimate || "",
+      description: winner.description || loser.description || undefined,
+      skills: winner.skills?.length ? winner.skills : loser.skills,
     });
   }
 

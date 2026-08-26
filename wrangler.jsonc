@@ -96,7 +96,15 @@
     // route is off: it fails closed with 403 rather than defaulting to
     // "whoever asks first", which would let any member of the Access policy
     // permanently take the owner's data.
-    "LEGACY_OWNER_SUB": ""
+    "LEGACY_OWNER_SUB": "",
+    // Job Search sources. freehire needs nothing; set FREEHIRE_API_URL only
+    // to point at a self-hosted instance instead of freehire.me. LinkedIn is
+    // off by default on purpose: its jobs-guest endpoints need no key, but
+    // automated access is against LinkedIn's Terms of Service, so turning it
+    // on ("1") is a deliberate personal-use decision, not a default anyone
+    // inherits. See README.md "Job search" and src/lib/linkedin.js.
+    "FREEHIRE_API_URL": "",
+    "LINKEDIN_SEARCH": ""
   },
 
   // Required, not cosmetic, now that Access is back: Access can only attach

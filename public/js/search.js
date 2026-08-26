@@ -15,7 +15,14 @@ const searchStatusEl = document.getElementById("status");
 const searchProgressEl = document.getElementById("searchProgress");
 const searchPaneBody = document.getElementById("searchPaneBody");
 
-const SOURCE_LABELS = { arbeitnow: "Arbeitnow", himalayas: "Himalayas", jsearch: "LinkedIn/Indeed/Glassdoor", tavily: "Tavily (web search)" };
+const SOURCE_LABELS = {
+  arbeitnow: "Arbeitnow",
+  himalayas: "Himalayas",
+  jsearch: "LinkedIn/Indeed/Glassdoor",
+  tavily: "Tavily (web search)",
+  freehire: "freehire (ATS aggregator)",
+  linkedin: "LinkedIn",
+};
 
 const chipEls = document.querySelectorAll("#jobTypeChips .chip");
 chipEls.forEach((chip) => {
@@ -52,6 +59,8 @@ async function loadSearchProfile() {
   document.getElementById("minComp").value = p.minComp;
   document.getElementById("notes").value = p.notes;
   document.getElementById("targetRole").value = p.targetRole || "";
+  document.getElementById("languages").value = p.languages || "";
+  document.getElementById("dealBreakers").value = p.dealBreakers || "";
 }
 
 function saveSearchProfileFromForm() {
@@ -65,6 +74,8 @@ function saveSearchProfileFromForm() {
       minComp: document.getElementById("minComp").value.trim(),
       notes: document.getElementById("notes").value.trim(),
       targetRole: document.getElementById("targetRole").value.trim(),
+      languages: document.getElementById("languages").value.trim(),
+      dealBreakers: document.getElementById("dealBreakers").value.trim(),
     },
   }).catch(() => {});
 }
@@ -103,7 +114,7 @@ document.getElementById("searchBtn").onclick = async () => {
   // One mutable state object per search; every stream event updates it and
   // re-renders, so real results appear the moment sources answer instead of
   // waiting out ranking (slow LLM call) and geocoding (~1s per new city).
-  const state = { jobs: [], total: 0, text: "", rankingError: null, ranked: false, coords: null, savedKeys: new Set(), cvId };
+  const state = { jobs: [], total: 0, text: "", rankingError: null, ranked: false, coords: null, savedKeys: new Set(), cvId, gateFiltered: [], alreadyTracked: 0 };
 
   const updateStatus = () => {
     if (!state.jobs.length) return;
@@ -128,6 +139,8 @@ document.getElementById("searchBtn").onclick = async () => {
         remote,
         minComp: document.getElementById("minComp").value.trim(),
         targetRole: document.getElementById("targetRole").value.trim(),
+        languages: document.getElementById("languages").value.trim(),
+        dealBreakers: document.getElementById("dealBreakers").value.trim(),
         notes: [document.getElementById("notes").value.trim(), selectedJobTypes().length ? `Job type preference: ${selectedJobTypes().join(", ")}` : ""].filter(Boolean).join(". "),
       }),
     });
@@ -165,6 +178,7 @@ document.getElementById("searchBtn").onclick = async () => {
         } else if (event === "jobs") {
           state.jobs = data.jobs || [];
           state.total = data.total ?? state.jobs.length;
+          state.alreadyTracked = data.alreadyTracked ?? 0;
           renderSearchResults(state);
         } else if (event === "ranked") {
           state.ranked = true;
@@ -172,6 +186,7 @@ document.getElementById("searchBtn").onclick = async () => {
           else {
             state.jobs = data.jobs || state.jobs;
             state.text = data.text || "";
+            state.gateFiltered = data.gateFiltered || [];
           }
           renderSearchResults(state);
         } else if (event === "geo") {
@@ -182,6 +197,8 @@ document.getElementById("searchBtn").onclick = async () => {
           state.coords = state.coords || {};
           state.jobs = data.jobs || state.jobs;
           state.text = data.text || state.text;
+          state.gateFiltered = data.gateFiltered || state.gateFiltered;
+          state.alreadyTracked = data.alreadyTracked ?? state.alreadyTracked;
           if (data.rankingError) state.rankingError = data.rankingError;
           renderSearchResults(state);
         }
@@ -243,6 +260,58 @@ function normalizeLocation(location) {
   return String(location || "").trim().toLowerCase();
 }
 
+const SCORE_DIMENSIONS = [
+  ["technical", "Skills"],
+  ["experience", "Experience"],
+  ["career", "Career"],
+];
+
+/** The three dimensions behind the headline match score. A single number
+ * hides which part is weak -- 70% because the skills fit but the seniority
+ * doesn't is a different job from 70% the other way round. */
+function renderScoreBreakdown(job) {
+  const rows = SCORE_DIMENSIONS.map(([key, label]) => [label, matchPct(job.scores?.[key])]).filter(
+    ([, pct]) => pct != null
+  );
+  if (!rows.length) return "";
+  return `<div class="score-breakdown">${rows
+    .map(
+      ([label, pct]) => `
+      <div class="score-row">
+        <span class="score-label">${label}</span>
+        <span class="score-track"><span class="score-fill" style="width:${pct}%;"></span></span>
+        <span class="score-value">${pct}</span>
+      </div>`
+    )
+    .join("")}</div>`;
+}
+
+/** What the search removed on your behalf, and why. Both of these hide real
+ * postings, so neither is allowed to happen silently -- a gate the model
+ * called wrong is only fixable if you can see it fired. */
+function renderFilterNotices(state) {
+  const parts = [];
+
+  if (state.alreadyTracked > 0) {
+    parts.push(
+      `${state.alreadyTracked} ${state.alreadyTracked === 1 ? "role is" : "roles are"} already on your <a href="pipeline.html">Pipeline</a> and hidden here.`
+    );
+  }
+
+  if (state.gateFiltered?.length) {
+    const items = state.gateFiltered
+      .map((g) => `<li>${escapeHtml(g.company)} — ${escapeHtml(g.title)}${g.reason ? `: ${escapeHtml(g.reason)}` : ""}</li>`)
+      .join("");
+    parts.push(
+      `${state.gateFiltered.length} ${state.gateFiltered.length === 1 ? "role was" : "roles were"} dropped against your languages or deal-breakers.
+       <details style="margin-top:6px;"><summary>Show them</summary><ul style="margin:6px 0 0;">${items}</ul></details>`
+    );
+  }
+
+  if (!parts.length) return "";
+  return `<div class="card" style="padding:12px 16px;"><p class="muted" style="margin:0;">${parts.join("<br>")}</p></div>`;
+}
+
 function renderSearchResults(state) {
   const { cvId, savedKeys } = state;
   const analysisText = state.text || "";
@@ -266,6 +335,7 @@ function renderSearchResults(state) {
       }
     </div>
     ${state.rankingError ? `<div class="error-banner" style="background:var(--warn-soft); color:var(--warn);">Ranking failed this time (${escapeHtml(state.rankingError)}); showing unranked results.</div>` : ""}
+    ${renderFilterNotices(state)}
     ${
       jobs.length
         ? `<div class="job-grid">${jobs
@@ -278,11 +348,16 @@ function renderSearchResults(state) {
                 <p class="muted" style="margin:0; display:flex; align-items:center; gap:6px;"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(String(j.company || "").toLowerCase().replace(/[^a-z0-9]/g, ""))}.com&sz=32" width="16" height="16" alt="" onerror="this.style.display='none'" />${escapeHtml(j.company)}</p>
               </div>
               ${matchPct(j.matchScore) != null ? `<span class="match-badge ${matchPct(j.matchScore) >= 80 ? "high" : matchPct(j.matchScore) >= 50 ? "mid" : "low"}">${matchPct(j.matchScore)}% MATCH</span>` : ""}
-              ${j.source === "arbeitnow" ? `<span class="pill muted" title="Found via Arbeitnow's job board API">Arbeitnow</span>` : ""}
-              ${j.source === "tavily" ? `<span class="pill muted" title="Found via Tavily web search">Tavily</span>` : ""}
+              ${j.source && SOURCE_LABELS[j.source] ? `<span class="pill muted" title="Found via ${escapeHtml(SOURCE_LABELS[j.source])}">${escapeHtml(SOURCE_LABELS[j.source].split(" (")[0])}</span>` : ""}
             </div>
             <p class="muted" style="margin:10px 0;">${icon("mapPin")} ${escapeHtml(j.location || "")} ${j.compEstimate ? `&nbsp;${icon("dollar")} ${escapeHtml(j.compEstimate)}` : ""}</p>
             ${j.fitNote ? `<p style="font-size:13.5px;">${escapeHtml(j.fitNote)}</p>` : ""}
+            ${renderScoreBreakdown(j)}
+            ${
+              j.languageGate === "FLAG" || j.dealBreakerGate === "FLAG"
+                ? `<p class="pill warn" style="font-size:12px; display:inline-block;">Worth a look: ${escapeHtml(j.gateNote || "may stretch one of your stated limits")}</p>`
+                : ""
+            }
             <div class="row" style="margin-top:12px;">
               <button class="btn" data-idx="${i}" style="flex:1;" ${savedKeys.has(savedKeyOf(j)) ? "disabled" : ""}>${savedKeys.has(savedKeyOf(j)) ? "Saved to Pipeline" : "Save"}</button>
               ${safeUrl(j.url) ? `<a class="icon-btn" href="${escapeHtml(safeUrl(j.url))}" target="_blank" rel="noopener" title="View posting">${icon("chevronRight")}</a>` : ""}

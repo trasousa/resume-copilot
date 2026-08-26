@@ -41,6 +41,14 @@
           <label>Other preferences (optional)</label>
           <input type="text" id="notes" placeholder="e.g. prefer ML/data roles, avoid agencies" />
 
+          <label>Languages you work in</label>
+          <input type="text" id="languages" placeholder="e.g. English (native), Portuguese (B2)" />
+          <p class="muted" style="margin:-6px 0 10px; font-size:12.5px;">A role demanding a language you haven't listed is rejected outright. One you've listed but at a lower level is flagged, not hidden.</p>
+
+          <label>Deal-breakers</label>
+          <input type="text" id="dealBreakers" placeholder="e.g. no relocation, no on-call, minimum 30 days holiday" />
+          <p class="muted" style="margin:-6px 0 10px; font-size:12.5px;">Non-negotiables. Roles that plainly contradict one are dropped from the results.</p>
+
           <label>Job type</label>
           <div class="row" id="jobTypeChips">
             <button type="button" class="chip active" data-type="full-time">Full-time</button>
