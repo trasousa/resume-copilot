@@ -116,7 +116,21 @@ const V1 = [
   `CREATE INDEX IF NOT EXISTS idx_templates_used   ON templates(last_used_at DESC)`,
 ];
 
-export const USER_SCHEMA_VERSIONS = [V1];
+// Hard-filter inputs for job ranking. Both are free text: a rubric the
+// model reads, not a controlled vocabulary. `languages` is separate from
+// `deal_breakers` because a language mismatch is the one deal-breaker that
+// needs a graded verdict -- a language you never listed is a hard reject,
+// while a higher level than you claim in a language you do speak is a
+// judgement call the candidate should make.
+//
+// ALTER TABLE isn't idempotent, which is exactly why versions exist: this
+// array runs once per instance, tracked in schema_meta.
+const V2 = [
+  `ALTER TABLE profile ADD COLUMN languages TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE profile ADD COLUMN deal_breakers TEXT NOT NULL DEFAULT ''`,
+];
+
+export const USER_SCHEMA_VERSIONS = [V1, V2];
 
 /** Bookkeeping for which versions an instance has applied. A plain table
  * rather than PRAGMA user_version, which isn't guaranteed available in

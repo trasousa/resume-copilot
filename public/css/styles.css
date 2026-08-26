@@ -976,3 +976,13 @@ details.intake[open] > summary::before { content: "–"; }
 .focus-flash { animation: focusFlash 2.2s ease-out both; border-radius: 6px; }
 
 .danger-note { margin-top: 34px; padding-top: 14px; border-top: 1px solid var(--border); }
+
+/* Per-dimension scores behind a job card's headline match number. Sized
+   and coloured to read as supporting detail, not to compete with the
+   match badge above it. */
+.score-breakdown { display: grid; gap: 4px; margin: 10px 0 2px; }
+.score-row { display: grid; grid-template-columns: 74px 1fr 26px; align-items: center; gap: 8px; }
+.score-label { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.score-track { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.score-fill { display: block; height: 100%; background: var(--rc-primary); opacity: 0.75; }
+.score-value { font-size: 11.5px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }

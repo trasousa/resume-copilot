@@ -75,14 +75,38 @@ This app uses [Cloudflare Workers AI](https://developers.cloudflare.com/workers-
 
 ## Job search
 
-Job Search combines four free sources, run concurrently:
+Job Search combines up to six free sources, run concurrently:
 
 - **[Arbeitnow](https://www.arbeitnow.com)** (`src/lib/arbeitnow.js`) -- free, no key. Germany/UK-heavy on-site + some remote postings, aggregated from Greenhouse/SmartRecruiters/etc, updated hourly. No server-side search, so city/region/country/remote filtering happens in-app after fetching.
 - **[Himalayas](https://himalayas.app)** (`src/lib/himalayas.js`) -- free, no key. Global remote-only postings with real keyword+country search and salary data when disclosed.
 - **[OpenWebNinja JSearch](https://www.openwebninja.com)** (`src/lib/jsearch.js`) -- optional, needs `OPENWEBNINJA_API_KEY` (`npx wrangler secret put OPENWEBNINJA_API_KEY`). Aggregates LinkedIn, Indeed, Glassdoor, ZipRecruiter, and other public boards via Google for Jobs. **Free tier is 200 requests/month** -- each user-initiated search costs exactly one JSearch request, so budget accordingly. Job Search works fine without this key set; you just lose that source's results.
 - **[Tavily](https://tavily.com)** (`src/lib/tavily.js`) -- optional, needs `TAVILY_API_KEY` (`npx wrangler secret put TAVILY_API_KEY`). General web search scoped to LinkedIn/Indeed/Glassdoor/Lever/Greenhouse/Workable via `include_domains`, parsed best-effort since Tavily returns generic web results rather than structured postings. Also optional -- Job Search works fine without this key set.
 
-Results from all four are deduplicated (`src/lib/jobdedup.js`, matched by normalized company + title + location/remote) before Workers AI ranks the merged list against your CV. Search progress streams to the page as each source resolves, rather than waiting for all four before showing anything.
+- **[freehire](https://freehire.me)** (`src/lib/freehire.js`) -- free, no key, on by default. An open-source aggregator that normalizes postings from ~50 ATS platforms into one schema. It is the only source that returns the posting's own body text at search time, which is what lets ranking judge fit from the actual job rather than from a title; its corpus is tech-heavy. The backend is MIT-licensed and self-hostable (`strelov1/freehire`) -- set `FREEHIRE_API_URL` to point at your own instance. Note its `countries` facet wants ISO-2 codes, which `freehire.js` maps for you.
+- **[LinkedIn](https://www.linkedin.com/jobs/)** (`src/lib/linkedin.js`) -- free, no key, **off unless you set `LINKEDIN_SEARCH="1"`**. Uses LinkedIn's public `jobs-guest` endpoints, the same ones a logged-out visitor sees, and returns real individual postings with company and city. **Automated access is against LinkedIn's Terms of Service**, so this is off by default and intended only for personal, low-volume use: one request per search you run yourself, no crawling, no bulk collection, no commercial use. Enabling it is your decision, which is why it takes a deliberate flag.
+
+Results are deduplicated (`src/lib/jobdedup.js`, matched by normalized company + title + location/remote), interleaved so no single source can crowd the others out of the shortlist, and filtered against your Pipeline so roles you already saved stop reappearing. Workers AI then ranks what is left against your CV, scoring skills, experience and career fit separately and applying your language and deal-breaker gates. Search progress streams to the page as each source resolves, and results render before ranking finishes rather than waiting for it.
+
+### Ranking gates
+
+Two fields on the Search page shape what you are shown, both free text read by the model rather than a fixed vocabulary:
+
+- **Languages you work in** (e.g. `English (native), Portuguese (B2)`). A posting demanding a language you have not listed at all is dropped. One demanding a higher level than you claim in a language you do list is flagged rather than hidden -- whether your B2 clears their "fluent" bar is your call, not the model's.
+- **Deal-breakers** (e.g. `no relocation, no on-call`). A posting that plainly contradicts one is dropped.
+
+Anything dropped is reported above the results with the reason, and can be expanded -- a gate the model got wrong is only fixable if you can see that it fired.
+
+### Fetching a job posting behind a bot filter
+
+`POST /api/jobpost/fetch` (the "Fetch" button next to a job link) pulls a posting's text so tailoring has something real to work from. Many corporate, bank and recruiter sites answer `403` to any client that doesn't look like a browser while serving the same page fine to one -- so a 403 there means the page refused the *client*, not that it's missing.
+
+On a 403 the fetcher reads the origin's `robots.txt` first:
+
+- **Policy allows the path** -- retry once with browser headers. That overrides a firewall default, not an expressed preference.
+- **Policy disallows it** -- stop. `robots.txt` is the exact mechanism a site is told it can rely on, so retrying past it would circumvent the site's own opt-out.
+- **Policy unreadable** (timeout, 5xx) -- stop. Permission you couldn't confirm isn't permission. A `404` is different: no policy published means no objection.
+
+Everything else is unchanged: redirects are still followed by hand with the private-address guard re-run on every hop, and the content-type and size caps still apply.
 
 ## Deploy
 
